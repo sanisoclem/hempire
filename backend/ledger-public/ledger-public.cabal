@@ -1,0 +1,17 @@
+cabal-version: 3.0
+name:          ledger-public
+version:       0.1.0.0
+synopsis:      Ledger domain types — events, commands, responses
+license:       NONE
+
+library
+  exposed-modules:  Ledger.Types
+  hs-source-dirs:   src
+  default-language:   GHC2024
+  default-extensions: DeriveAnyClass
+  ghc-options:        -Wall
+  build-depends:
+    , base   ^>=4.20
+    , aeson  ^>=2.2
+    , text
+    , time

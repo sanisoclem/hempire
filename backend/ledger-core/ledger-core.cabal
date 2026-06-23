@@ -1,0 +1,47 @@
+cabal-version: 3.0
+name:          ledger-core
+version:       0.1.0.0
+synopsis:      Ledger business logic and effect definitions
+license:       NONE
+
+common shared
+  default-language:   GHC2024
+  default-extensions:
+    OverloadedStrings
+    LambdaCase
+    DeriveAnyClass
+    TemplateHaskell
+    TypeFamilies
+  ghc-options: -Wall
+
+library
+  import:           shared
+  hs-source-dirs:   src
+  exposed-modules:
+    Ledger.Core
+    Ledger.Core.Domain
+    Ledger.Core.Entry
+    Ledger.Core.Repository
+  build-depends:
+    , base              ^>=4.20
+    , ledger-public
+    , hempire-effects
+    , effectful-core    ^>=2.3
+    , effectful-th      ^>=1.0
+    , aeson             ^>=2.2
+    , text
+    , time
+
+test-suite ledger-core-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Main.hs
+  other-modules:    Ledger.Core.ValidationSpec
+  hs-source-dirs:   test
+  build-depends:
+    , base
+    , ledger-core
+    , ledger-public
+    , tasty             ^>=1.5
+    , tasty-hunit       ^>=0.10
+    , text

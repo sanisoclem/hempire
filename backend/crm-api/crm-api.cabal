@@ -1,0 +1,28 @@
+cabal-version: 3.0
+name:          crm-api
+version:       0.1.0.0
+synopsis:      CRM HTTP API service
+license:       NONE
+
+executable crm-api
+  main-is:          Main.hs
+  other-modules:    Crm.Handlers
+  hs-source-dirs:   src
+  default-language:   GHC2024
+  default-extensions:
+    OverloadedStrings
+    LambdaCase
+  ghc-options:        -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base                ^>=4.20
+    , crm-public
+    , crm-core
+    , crm-interpreters
+    , hempire-effects
+    , hempire-interpreters
+    , aeson               ^>=2.2
+    , effectful           ^>=2.3
+    , servant             ^>=0.20
+    , servant-server      ^>=0.20
+    , text
+    , warp                ^>=3.4

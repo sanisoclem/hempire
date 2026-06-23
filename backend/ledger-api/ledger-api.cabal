@@ -1,0 +1,28 @@
+cabal-version: 3.0
+name:          ledger-api
+version:       0.1.0.0
+synopsis:      Ledger HTTP API service
+license:       NONE
+
+executable ledger-api
+  main-is:          Main.hs
+  other-modules:    Ledger.Handlers
+  hs-source-dirs:   src
+  default-language:   GHC2024
+  default-extensions:
+    OverloadedStrings
+    LambdaCase
+  ghc-options:        -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base                ^>=4.20
+    , ledger-public
+    , ledger-core
+    , ledger-interpreters
+    , hempire-effects
+    , hempire-interpreters
+    , aeson               ^>=2.2
+    , effectful           ^>=2.3
+    , servant             ^>=0.20
+    , servant-server      ^>=0.20
+    , text
+    , warp                ^>=3.4

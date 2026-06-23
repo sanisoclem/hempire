@@ -1,0 +1,26 @@
+# Haskell
+dist-newstyle/
+.cabal/
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+cabal.project.local
+cabal.project.local~
+
+# SvelteKit / Bun
+web/.svelte-kit/
+web/build/
+web/node_modules/
+web/bun.lockb
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+.dockerignore
+
+# Editor
+.direnv/

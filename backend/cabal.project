@@ -1,0 +1,13 @@
+packages:
+  ./crm-public
+  ./crm-core
+  ./crm-interpreters
+  ./crm-api
+  ./crm-worker
+  ./ledger-public
+  ./ledger-core
+  ./ledger-interpreters
+  ./ledger-api
+  ./ledger-worker
+  ./hempire-effects
+  ./hempire-interpreters

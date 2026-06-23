@@ -37,6 +37,9 @@ jobs:
           key: ${{ runner.os }}-cabal-${{ hashFiles('backend/cabal.project.freeze') }}
           restore-keys: ${{ runner.os }}-cabal-
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y librdkafka-dev
+
       - run: cabal update
       - run: cabal build all
       - run: cabal test all --test-show-details=direct

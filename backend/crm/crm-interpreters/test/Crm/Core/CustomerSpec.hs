@@ -2,6 +2,7 @@ module Crm.Core.CustomerSpec (spec) where
 
 import Crm.Core.Customer
 import Crm.Core.Domain (CrmDomainError (..))
+import Crm.Interpreter.CustomerContext (runInternalContext)
 import Crm.Interpreter.Repository.Mock
 import Crm.Types hiding (InviteAlreadyClaimed)
 
@@ -201,5 +202,6 @@ spec = testGroup "Crm.Core.Customer"
         $ runEventsMock eventLog
         $ runTimeMock fixedTime
         $ runIdGenMock newIdVal
+        $ runInternalContext
         $ runCrmRepositoryMock mock
         $ action

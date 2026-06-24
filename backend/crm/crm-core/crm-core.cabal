@@ -1,7 +1,7 @@
 cabal-version: 3.0
-name:          crm-interpreters
+name:          crm-core
 version:       0.1.0.0
-synopsis:      PostgreSQL and mock interpreters for Crm.Core.Repository
+synopsis:      CRM business logic and effect definitions
 license:       NONE
 
 common shared
@@ -12,28 +12,32 @@ common shared
     DeriveAnyClass
     DuplicateRecordFields
     OverloadedLabels
+    TemplateHaskell
+    TypeFamilies
   ghc-options: -Wall
 
 library
   import:           shared
   hs-source-dirs:   src
   exposed-modules:
-    Crm.Interpreter.Repository.Postgres
-    Crm.Interpreter.Repository.Mock
+    Crm.Core
+    Crm.Core.CustomerContext
+    Crm.Core.Domain
+    Crm.Core.Customer
+    Crm.Core.Repository
   build-depends:
-    , base                ^>=4.20
-    , crm-core
+    , base              ^>=4.20
     , crm-public
     , hempire-effects
-    , hempire-interpreters
-    , effectful-core      ^>=2.3
-    , containers
-    , optics-core         ^>=0.4
-    , postgresql-simple   ^>=0.7
+    , effectful-core    ^>=2.3
+    , effectful-th      ^>=1.0
+    , aeson             ^>=2.2
+    , optics-core       ^>=0.4
     , text
     , time
+    , transformers
 
-test-suite crm-interpreters-test
+test-suite crm-core-test
   import:           shared
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
@@ -42,15 +46,8 @@ test-suite crm-interpreters-test
   build-depends:
     , base
     , crm-core
-    , crm-interpreters
     , crm-public
     , hempire-effects
-    , hempire-interpreters
-    , effectful           ^>=2.3
-    , containers
-    , optics-core         ^>=0.4
-    , stm
-    , tasty               ^>=1.5
-    , tasty-hunit         ^>=0.10
+    , tasty             ^>=1.5
+    , tasty-hunit       ^>=0.10
     , text
-    , time

@@ -19,6 +19,8 @@ library
     Hempire.AppEnv
     Hempire.Interpreter.Database.Postgres
     Hempire.Interpreter.Database.Mock
+    Hempire.Interpreter.IdGen.Real
+    Hempire.Interpreter.IdGen.Mock
     Hempire.Interpreter.Time.System
     Hempire.Interpreter.Time.Mock
     Hempire.Interpreter.Auth.IORef
@@ -35,9 +37,11 @@ library
     , aeson             ^>=2.2
     , bytestring
     , containers
+    , cryptohash-sha256 ^>=0.11
     , fast-logger       ^>=3.2
     , postgresql-simple ^>=0.7
     , resource-pool     ^>=0.4
     , stm
     , text
     , time
+    , uuid              ^>=1.3

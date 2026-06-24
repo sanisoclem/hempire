@@ -18,9 +18,11 @@ library
   import:           shared
   hs-source-dirs:   src
   exposed-modules:
+    Hempire.DomainId
     Hempire.Effect.Auth
     Hempire.Effect.Database
     Hempire.Effect.Events
+    Hempire.Effect.IdGen
     Hempire.Effect.Logging
     Hempire.Effect.Time
     Hempire.Prelude
@@ -30,7 +32,9 @@ library
     , effectful-core    ^>=2.3
     , effectful-th      ^>=1.0
     , aeson             ^>=2.2
+    , bytestring
     , containers
     , postgresql-simple ^>=0.7
+    , template-haskell
     , text
     , time

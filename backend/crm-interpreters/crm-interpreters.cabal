@@ -10,6 +10,8 @@ common shared
     OverloadedStrings
     LambdaCase
     DeriveAnyClass
+    DuplicateRecordFields
+    OverloadedLabels
   ghc-options: -Wall
 
 library
@@ -26,6 +28,7 @@ library
     , hempire-interpreters
     , effectful-core      ^>=2.3
     , containers
+    , optics-core         ^>=0.4
     , postgresql-simple   ^>=0.7
     , text
     , time
@@ -34,7 +37,7 @@ test-suite crm-interpreters-test
   import:           shared
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
-  other-modules:    Crm.Core.ContactSpec
+  other-modules:    Crm.Core.CustomerSpec
   hs-source-dirs:   test
   build-depends:
     , base
@@ -45,6 +48,7 @@ test-suite crm-interpreters-test
     , hempire-interpreters
     , effectful           ^>=2.3
     , containers
+    , optics-core         ^>=0.4
     , stm
     , tasty               ^>=1.5
     , tasty-hunit         ^>=0.10

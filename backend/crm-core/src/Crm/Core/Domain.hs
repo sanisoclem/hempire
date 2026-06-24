@@ -2,14 +2,14 @@ module Crm.Core.Domain
   ( CrmDomainError (..)
   ) where
 
-import Crm.Types (ContactId)
-import Data.Text (Text)
+import Crm.Types (CustomerId, IdentityProviderId, InviteId)
 
--- | Business-logic errors for the CRM domain.
--- These are internal types — they are NOT serialised to JSON.
--- API handlers map them to 'CrmError' or HTTP status codes at the boundary.
+-- | Internal business-logic errors for the CRM domain.
+-- Not serialised to JSON — API handlers map these to 'CrmError' at the boundary.
 data CrmDomainError
-  = ContactNotFound ContactId
-  | ContactEmailAlreadyExists Text
-  | ContactValidationFailed [Text]
+  = InviteNotFound InviteId
+  | InviteAlreadyClaimed InviteId
+  | InviteNotActive InviteId
+  | IdpNotEnabledForCustomers IdentityProviderId
+  | CustomerNotFound CustomerId
   deriving stock (Show, Eq)

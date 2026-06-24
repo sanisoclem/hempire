@@ -1,91 +1,256 @@
 module Crm.Types
-  ( -- * Command envelope
-    CrmCommand (..)
-    -- * Commands
-  , CreateContact (..)
-  , UpdateContact (..)
+  ( -- * Domain IDs
+    CustomerId (..)
+  , InviteId (..)
+  , IdentityProviderId (..)
+
+    -- * Identity provider
+  , IdentityProvider (..)
+
+    -- * Invite
+  , InviteSource (..)
+  , InviteDetails (..)
+
+    -- * Identity
+  , Identity (..)
+
+    -- * Onboarding status
+  , OnboardingStatus (..)
+
+    -- * Commands (inputs)
+  , OnboardCustomer (..)
+  , CreateInvite (..)
+  , DeleteCustomerInvite (..)
+  , DeactivateCustomer (..)
+
+    -- * Kafka command envelope
+  , CrmCommand (..)
+
     -- * Events
-  , ContactCreated (..)
-  , ContactUpdated (..)
+  , CustomerOnboarded (..)
+  , InviteCreated (..)
+  , InviteDeleted (..)
+  , CustomerDeactivated (..)
+
     -- * Responses
   , CrmResponse (..)
   , CrmError (..)
-  , ContactId (..)
   ) where
 
-import Data.Aeson
-  ( FromJSON (..), Options (..), SumEncoding (..), ToJSON (..)
-  , defaultOptions, genericParseJSON, genericToEncoding, genericToJSON
-  )
+import Data.Aeson (
+    FromJSON (..),
+    Options (..),
+    SumEncoding (..),
+    ToJSON (..),
+    defaultOptions,
+    genericParseJSON,
+    genericToEncoding,
+    genericToJSON,
+ )
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
+import Hempire.DomainId (makeDomainId)
+import Optics.TH (makeFieldLabelsNoPrefix)
 
--- | All commands this domain accepts on the @crm.commands@ topic.
+-- --------------------------------------------------------------------------
+-- Domain IDs
+-- --------------------------------------------------------------------------
+
+makeDomainId "CustomerId"         "cust_"
+makeDomainId "InviteId"           "inv_"
+makeDomainId "IdentityProviderId" "idp_"
+
+-- --------------------------------------------------------------------------
+-- Identity provider enum (used for configuration, not DB lookup by ID)
+-- --------------------------------------------------------------------------
+
+data IdentityProvider
+    = DebugIdentityProvider
+    | ClerkIdentityProvider
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+-- --------------------------------------------------------------------------
+-- Invite
+-- --------------------------------------------------------------------------
+
+data InviteSource
+    = Referral
+    | Waitlist
+    | Debug
+    | Manual
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data InviteDetails = InviteDetails
+    { inviteId   :: InviteId
+    , source     :: InviteSource
+    , createdOn  :: UTCTime
+    , active     :: Bool
+    , customerId :: Maybe CustomerId
+    , comment    :: Maybe Text
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''InviteDetails
+
+-- --------------------------------------------------------------------------
+-- Identity
+-- --------------------------------------------------------------------------
+
+data Identity = Identity
+    { providerId :: IdentityProviderId
+    , identityId :: Text
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''Identity
+
+-- --------------------------------------------------------------------------
+-- Onboarding status
+-- --------------------------------------------------------------------------
+
+data OnboardingStatus
+    = NotOnboarded
+    | OnboardingPending
+    | Onboarded {customerId :: CustomerId}
+    deriving stock (Show, Eq, Generic)
+
+onboardingStatusOptions :: Options
+onboardingStatusOptions =
+    defaultOptions
+        { sumEncoding = TaggedObject{tagFieldName = "status", contentsFieldName = "data"}
+        }
+
+instance FromJSON OnboardingStatus where
+    parseJSON = genericParseJSON onboardingStatusOptions
+
+instance ToJSON OnboardingStatus where
+    toJSON     = genericToJSON     onboardingStatusOptions
+    toEncoding = genericToEncoding onboardingStatusOptions
+
+-- --------------------------------------------------------------------------
+-- Command inputs
+-- --------------------------------------------------------------------------
+
+data OnboardCustomer = OnboardCustomer
+    { identity :: Identity
+    , inviteId :: InviteId
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''OnboardCustomer
+
+data CreateInvite = CreateInvite
+    { source  :: InviteSource
+    , comment :: Maybe Text
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''CreateInvite
+
+newtype DeleteCustomerInvite = DeleteCustomerInvite
+    { inviteId :: InviteId
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''DeleteCustomerInvite
+
+newtype DeactivateCustomer = DeactivateCustomer
+    { customerId :: CustomerId
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''DeactivateCustomer
+
+-- --------------------------------------------------------------------------
+-- Kafka command envelope (state-mutating operations only)
+-- --------------------------------------------------------------------------
+
 data CrmCommand
-  = CreateContactCommand CreateContact
-  | UpdateContactCommand UpdateContact
-  deriving stock (Show, Eq, Generic)
+    = OnboardCustomerCommand OnboardCustomer
+    | CreateInviteCommand CreateInvite
+    | DeleteCustomerInviteCommand DeleteCustomerInvite
+    | DeactivateCustomerCommand DeactivateCustomer
+    deriving stock (Show, Eq, Generic)
 
 commandOptions :: Options
-commandOptions = defaultOptions
-  { sumEncoding = TaggedObject { tagFieldName = "type", contentsFieldName = "payload" } }
+commandOptions =
+    defaultOptions
+        { sumEncoding = TaggedObject{tagFieldName = "type", contentsFieldName = "payload"}
+        }
 
 instance FromJSON CrmCommand where
-  parseJSON = genericParseJSON commandOptions
+    parseJSON = genericParseJSON commandOptions
 
 instance ToJSON CrmCommand where
-  toJSON     = genericToJSON commandOptions
-  toEncoding = genericToEncoding commandOptions
+    toJSON     = genericToJSON     commandOptions
+    toEncoding = genericToEncoding commandOptions
 
-newtype ContactId = ContactId Text
-  deriving stock (Show, Eq, Ord, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+-- --------------------------------------------------------------------------
+-- Events
+-- --------------------------------------------------------------------------
 
-data CreateContact = CreateContact
-  { ccName          :: Text
-  , ccEmail         :: Text
-  , ccCorrelationId :: Text
-  }
-  deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+data CustomerOnboarded = CustomerOnboarded
+    { customerId :: CustomerId
+    , inviteId   :: InviteId
+    , identity   :: Identity
+    , at         :: UTCTime
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
 
-data UpdateContact = UpdateContact
-  { ucId            :: ContactId
-  , ucName          :: Maybe Text
-  , ucEmail         :: Maybe Text
-  , ucCorrelationId :: Text
-  }
-  deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+makeFieldLabelsNoPrefix ''CustomerOnboarded
 
-data ContactCreated = ContactCreated
-  { ccEvtId            :: ContactId
-  , ccEvtName          :: Text
-  , ccEvtEmail         :: Text
-  , ccEvtCorrelationId :: Text
-  , ccEvtAt            :: UTCTime
-  }
-  deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+data InviteCreated = InviteCreated
+    { inviteId :: InviteId
+    , source   :: InviteSource
+    , at       :: UTCTime
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
 
-data ContactUpdated = ContactUpdated
-  { cuEvtId            :: ContactId
-  , cuEvtCorrelationId :: Text
-  , cuEvtAt            :: UTCTime
-  }
-  deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+makeFieldLabelsNoPrefix ''InviteCreated
+
+data InviteDeleted = InviteDeleted
+    { inviteId :: InviteId
+    , at       :: UTCTime
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''InviteDeleted
+
+data CustomerDeactivated = CustomerDeactivated
+    { customerId :: CustomerId
+    , at         :: UTCTime
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+makeFieldLabelsNoPrefix ''CustomerDeactivated
+
+-- --------------------------------------------------------------------------
+-- Responses
+-- --------------------------------------------------------------------------
 
 data CrmError
-  = NotFound Text
-  | ValidationFailed [Text]
-  | Conflict Text
-  deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+    = NotFound Text
+    | ValidationFailed [Text]
+    | Conflict Text
+    | InviteAlreadyClaimed Text
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
 
 data CrmResponse a
-  = Ok a
-  | Err CrmError
-  deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+    = Ok a
+    | Err CrmError
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)

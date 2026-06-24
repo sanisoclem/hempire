@@ -10,6 +10,8 @@ common shared
     OverloadedStrings
     LambdaCase
     DeriveAnyClass
+    DuplicateRecordFields
+    OverloadedLabels
     TemplateHaskell
     TypeFamilies
   ghc-options: -Wall
@@ -20,7 +22,7 @@ library
   exposed-modules:
     Crm.Core
     Crm.Core.Domain
-    Crm.Core.Contact
+    Crm.Core.Customer
     Crm.Core.Repository
   build-depends:
     , base              ^>=4.20
@@ -29,6 +31,7 @@ library
     , effectful-core    ^>=2.3
     , effectful-th      ^>=1.0
     , aeson             ^>=2.2
+    , optics-core       ^>=0.4
     , text
     , time
 
@@ -36,12 +39,13 @@ test-suite crm-core-test
   import:           shared
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
-  other-modules:    Crm.Core.ValidationSpec
+  other-modules:    Crm.Core.CustomerSpec
   hs-source-dirs:   test
   build-depends:
     , base
     , crm-core
     , crm-public
+    , hempire-effects
     , tasty             ^>=1.5
     , tasty-hunit       ^>=0.10
     , text

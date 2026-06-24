@@ -6,7 +6,6 @@ module Crm.Core.Customer
   , createInvite
   , deleteCustomerInvite
   , getCustomerInvite
-  , getOnboardingStatus
   , deactivateCustomer
   ) where
 
@@ -15,6 +14,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Crm.Core.CustomerContext (CustomerContext)
 import Crm.Core.Domain (CrmDomainError (..))
+import Crm.Core.Idp (Idp, setIdentityCustomer)
 import Crm.Core.Repository
 import Crm.Types hiding (InviteAlreadyClaimed)
 import Data.Aeson (toJSON)
@@ -29,11 +29,14 @@ import Optics.Core
 type CrmEffect es =
   ( CrmRepository   :> es
   , CustomerContext :> es
+  , Idp             :> es
   , IdGen           :> es
   , Time            :> es
   , Events          :> es
   , Logging         :> es
   )
+
+type Crm es = ExceptT CrmDomainError (Eff es)
 
 onboardCustomer
   :: CrmEffect es
@@ -43,25 +46,22 @@ onboardCustomer cmd = runExceptT $ do
   let idpId   = cmd ^. #identity % #providerId
       identId = cmd ^. #identity % #identityId
       iid     = cmd ^. #inviteId
-  ensureIdpEnabled idpId
+  cfg    <- ensureIdpExists idpId
+  ensureIdpEnabled idpId cfg
   invite <- requireInvite iid
   ensureInviteActive iid invite
-  ensureInviteUnclaimed iid invite
-  now    <- lift getUtcTimestampNow
   rawCid <- lift (deriveId (getRaw iid))
   let cid = wrapRaw rawCid :: CustomerId
-  lift $ createCustomerRecord cid now
-  lift $ createIdentityRecord idpId identId cid
-  lift $ claimInvite iid cid
-  lift $ publishEvent "crm.events"
-    CustomerOnboarded
-      { customerId = cid
-      , inviteId   = iid
-      , identity   = cmd ^. #identity
-      , at         = now
-      }
-  lift $ logInfo "crm.customer.onboarded"
-    [("customerId", toJSON (showId cid)), ("inviteId", toJSON (showId iid))]
+  alreadyExists <- lift (customerExists cid)
+  unless alreadyExists $ do
+    now <- lift getUtcTimestampNow
+    lift $ createCustomerRecord cid now
+    lift $ claimInvite iid cid
+    lift $ publishEvent "crm.events"
+      CustomerOnboarded{customerId = cid, inviteId = iid, at = now}
+    lift $ logInfo "crm.customer.onboarded"
+      [("customerId", toJSON (showId cid)), ("inviteId", toJSON (showId iid))]
+  lift $ setIdentityCustomer (idpType cfg) identId cid
   pure cid
 
 createInvite
@@ -102,14 +102,6 @@ getCustomerInvite
 getCustomerInvite iid =
   maybe (Left (InviteNotFound iid)) Right <$> findInvite iid
 
-getOnboardingStatus
-  :: CrmEffect es
-  => Identity
-  -> Eff es OnboardingStatus
-getOnboardingStatus ident = do
-  mCid <- findCustomerByIdentity (ident ^. #providerId) (ident ^. #identityId)
-  pure $ maybe NotOnboarded Onboarded mCid
-
 deactivateCustomer
   :: CrmEffect es
   => CustomerId
@@ -125,12 +117,13 @@ deactivateCustomer cid = runExceptT $ do
 -- Private guard helpers
 -- ---------------------------------------------------------------------------
 
-type Crm es = ExceptT CrmDomainError (Eff es)
+ensureIdpExists :: CrmRepository :> es => IdentityProviderId -> Crm es IdpConfig
+ensureIdpExists idpId =
+  lift (getIdpConfig idpId) >>= maybe (throwE (IdpNotFound idpId)) pure
 
-ensureIdpEnabled :: CrmRepository :> es => IdentityProviderId -> Crm es ()
-ensureIdpEnabled idpId = do
-  enabled <- lift (isIdpEnabledForCustomers idpId)
-  unless enabled $ throwE (IdpNotEnabledForCustomers idpId)
+ensureIdpEnabled :: IdentityProviderId -> IdpConfig -> Crm es ()
+ensureIdpEnabled idpId cfg =
+  unless (idpEnabled cfg) $ throwE (IdpNotEnabledForCustomers idpId)
 
 requireInvite :: CrmRepository :> es => InviteId -> Crm es InviteDetails
 requireInvite iid =

@@ -1,7 +1,7 @@
 cabal-version: 3.0
 name:          crm-interpreters
 version:       0.1.0.0
-synopsis:      PostgreSQL and mock interpreters for Crm.Core.Repository
+synopsis:      PostgreSQL, HTTP, and mock interpreters for CRM effects
 license:       NONE
 
 common shared
@@ -19,18 +19,26 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Crm.Interpreter.CustomerContext
+    Crm.Interpreter.Idp.Mock
+    Crm.Interpreter.Idp.Zitadel
     Crm.Interpreter.Repository.Postgres
     Crm.Interpreter.Repository.Mock
   build-depends:
-    , base                ^>=4.20
+    , base                  ^>=4.20
     , crm-core
     , crm-public
     , hempire-effects
     , hempire-interpreters
-    , effectful-core      ^>=2.3
+    , effectful-core        ^>=2.3
+    , aeson                 ^>=2.2
+    , base64-bytestring     ^>=1.2
+    , bytestring
     , containers
-    , optics-core         ^>=0.4
-    , postgresql-simple   ^>=0.7
+    , http-client           ^>=0.7
+    , http-client-tls       ^>=0.3
+    , http-types            ^>=0.12
+    , optics-core           ^>=0.4
+    , postgresql-simple     ^>=0.7
     , text
     , time
 

@@ -23,6 +23,7 @@ library
     Crm.Core
     Crm.Core.CustomerContext
     Crm.Core.Domain
+    Crm.Core.Idp
     Crm.Core.Customer
     Crm.Core.Repository
   build-depends:

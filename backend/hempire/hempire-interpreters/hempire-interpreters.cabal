@@ -17,18 +17,19 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Hempire.AppEnv
+    Hempire.Interpreter.Auth.IORef
+    Hempire.Interpreter.Auth.Jwt
+    Hempire.Interpreter.Auth.Mock
     Hempire.Interpreter.Database.Postgres
     Hempire.Interpreter.Database.Mock
-    Hempire.Interpreter.IdGen.Real
-    Hempire.Interpreter.IdGen.Mock
-    Hempire.Interpreter.Time.System
-    Hempire.Interpreter.Time.Mock
-    Hempire.Interpreter.Auth.IORef
-    Hempire.Interpreter.Auth.Mock
     Hempire.Interpreter.Events.Outbox
     Hempire.Interpreter.Events.Mock
+    Hempire.Interpreter.IdGen.Real
+    Hempire.Interpreter.IdGen.Mock
     Hempire.Interpreter.Logging.FastLogger
     Hempire.Interpreter.Logging.Mock
+    Hempire.Interpreter.Time.System
+    Hempire.Interpreter.Time.Mock
   build-depends:
     , base              ^>=4.20
     , hempire-effects
@@ -39,6 +40,11 @@ library
     , containers
     , cryptohash-sha256 ^>=0.11
     , fast-logger       ^>=3.2
+    , http-client       ^>=0.7
+    , http-client-tls   ^>=0.3
+    , jose              ^>=0.11
+    , lens
+    , transformers
     , postgresql-simple ^>=0.7
     , resource-pool     ^>=0.4
     , stm

@@ -37,6 +37,7 @@ module Crm.Types
   , CrmError (..)
   ) where
 
+import Web.HttpApiData (FromHttpApiData (..), ToHttpApiData (..))
 import Data.Aeson (
     FromJSON (..),
     Options (..),
@@ -50,7 +51,7 @@ import Data.Aeson (
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
-import Hempire.DomainId (makeDomainId)
+import Hempire.DomainId (makeDomainId, parseId, showId)
 import Optics.TH (makeFieldLabelsNoPrefix)
 
 -- --------------------------------------------------------------------------
@@ -60,6 +61,12 @@ import Optics.TH (makeFieldLabelsNoPrefix)
 makeDomainId "CustomerId"         "cust_"
 makeDomainId "InviteId"           "inv_"
 makeDomainId "IdentityProviderId" "idp_"
+
+instance FromHttpApiData CustomerId where parseUrlPiece = parseId
+instance ToHttpApiData   CustomerId where toUrlPiece    = showId
+
+instance FromHttpApiData InviteId where parseUrlPiece = parseId
+instance ToHttpApiData   InviteId where toUrlPiece    = showId
 
 -- --------------------------------------------------------------------------
 -- Identity provider enum (used for configuration, not DB lookup by ID)
@@ -201,7 +208,6 @@ instance ToJSON CrmCommand where
 data CustomerOnboarded = CustomerOnboarded
     { customerId :: CustomerId
     , inviteId   :: InviteId
-    , identity   :: Identity
     , at         :: UTCTime
     }
     deriving stock (Show, Eq, Generic)

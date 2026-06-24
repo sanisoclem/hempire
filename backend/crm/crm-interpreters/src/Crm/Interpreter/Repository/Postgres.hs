@@ -2,7 +2,7 @@ module Crm.Interpreter.Repository.Postgres
   ( runCrmRepositoryPostgres
   ) where
 
-import Crm.Core.Repository (CrmRepository (..))
+import Crm.Core.Repository (CrmRepository (..), IdpConfig (..))
 import Crm.Types
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -67,31 +67,15 @@ runCrmRepositoryPostgres = interpret $ \_env -> \case
       "UPDATE customers SET active = ?, updated_on = ? WHERE customer_id = ?"
       (active, ts, showId cid)
 
-  -- Identity ----------------------------------------------------------------
-  FindCustomerByIdentity idpId identId -> do
-    rows <- runQuery
-      "SELECT customer_id FROM identities \
-      \WHERE identity_provider_id = ? AND identity_id = ? LIMIT 1"
-      (showId idpId, identId)
-    pure $ case (rows :: [Only Text]) of
-      Only rawCid : _ -> Just (unsafeParseId rawCid)
-      []              -> Nothing
-
-  CreateIdentityRecord idpId identId cid ->
-    runQuery_
-      "INSERT INTO identities (identity_provider_id, identity_id, customer_id, active) \
-      \VALUES (?, ?, ?, true)"
-      (showId idpId, identId, showId cid)
-
   -- IdP ---------------------------------------------------------------------
-  IsIdpEnabledForCustomers idpId -> do
+  GetIdpConfig idpId -> do
     rows <- runQuery
-      "SELECT enable_customers FROM identity_providers \
-      \WHERE identity_provider_id = ? LIMIT 1"
+      "SELECT enable_customers, idp_type \
+      \FROM identity_providers WHERE identity_provider_id = ? LIMIT 1"
       (Only (showId idpId))
-    pure $ case (rows :: [Only Bool]) of
-      Only flag : _ -> flag
-      []            -> False
+    pure $ case (rows :: [(Bool, Text)]) of
+      (enabled, typ) : _ -> Just IdpConfig{idpEnabled = enabled, idpType = typ}
+      []                 -> Nothing
 
 -- ---------------------------------------------------------------------------
 -- Helpers

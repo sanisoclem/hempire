@@ -1,60 +1,81 @@
 module Crm.Handlers
-  ( createContactH
-  , updateContactH
+  ( onboardCustomerH
+  , createInviteH
+  , getInviteH
+  , deleteInviteH
+  , deactivateCustomerH
   ) where
 
-import Crm.Core qualified as Core
-import Crm.Core.Domain
-import Crm.Core.Repository (CrmRepository)
-import Crm.Types
-import Data.Text (Text)
+import Crm.Auth (CrmAuthResult (..))
+import Crm.Core.Customer
+import Crm.Core.Domain (CrmDomainError (..))
+import Crm.Types hiding (InviteAlreadyClaimed)
 import Effectful
 import Effectful.Error.Static (Error, throwError)
-import Servant (ServerError, err401, err403, err404)
+import Servant (ServerError, err403)
 
-import Hempire.Effect.Auth (Auth, AuthError (..), Permission (..), requirePermission)
-import Hempire.Effect.Events (Events)
-import Hempire.Effect.Logging (Logging)
-import Hempire.Effect.Time (Time)
-
-type HandlerEffects es =
-  ( CrmRepository :> es
-  , Time          :> es
-  , Events        :> es
-  , Auth          :> es
-  , Logging       :> es
+type App es =
+  ( CrmEffect es
   , Error ServerError :> es
   )
 
-createContactH
-  :: HandlerEffects es
-  => CreateContact
-  -> Eff es (CrmResponse ContactId)
-createContactH cmd = do
-  checkPermission "contacts:write"
-  Core.createContact cmd >>= \case
-    Left (ContactValidationFailed errs) -> pure (Err (ValidationFailed errs))
-    Left (ContactEmailAlreadyExists e)  -> pure (Err (Conflict e))
-    Left (ContactNotFound _)            -> throwError err404
-    Right contactId                     -> pure (Ok contactId)
+onboardCustomerH
+  :: App es
+  => CrmAuthResult -> OnboardCustomer -> Eff es (CrmResponse CustomerId)
+onboardCustomerH auth cmd = do
+  requireBff auth
+  case auth of
+    BffAuth{authCustomerId = Just _} ->
+      pure (Err (Conflict "already onboarded"))
+    _ ->
+      mapCrmError <$> onboardCustomer cmd
 
-updateContactH
-  :: HandlerEffects es
-  => Text
-  -> UpdateContact
-  -> Eff es (CrmResponse ContactId)
-updateContactH rawId cmd = do
-  checkPermission "contacts:write"
-  let cid = ContactId rawId
-  Core.updateContact cid cmd >>= \case
-    Left (ContactValidationFailed errs) -> pure (Err (ValidationFailed errs))
-    Left (ContactNotFound _)            -> pure (Err (NotFound rawId))
-    Left (ContactEmailAlreadyExists e)  -> pure (Err (Conflict e))
-    Right contactId                     -> pure (Ok contactId)
+createInviteH
+  :: App es
+  => CrmAuthResult -> CreateInvite -> Eff es (CrmResponse InviteId)
+createInviteH auth cmd = do
+  requireInternal auth
+  mapCrmError <$> createInvite cmd
 
-checkPermission :: HandlerEffects es => Permission -> Eff es ()
-checkPermission perm =
-  requirePermission perm >>= \case
-    Left Unauthenticated -> throwError err401
-    Left (Forbidden _)   -> throwError err403
-    Right _              -> pure ()
+getInviteH
+  :: App es
+  => InviteId -> CrmAuthResult -> Eff es (CrmResponse InviteDetails)
+getInviteH iid auth = do
+  requireInternal auth
+  mapCrmError <$> getCustomerInvite iid
+
+deleteInviteH
+  :: App es
+  => InviteId -> CrmAuthResult -> Eff es (CrmResponse ())
+deleteInviteH iid auth = do
+  requireInternal auth
+  mapCrmError <$> deleteCustomerInvite iid
+
+deactivateCustomerH
+  :: App es
+  => CustomerId -> CrmAuthResult -> Eff es (CrmResponse ())
+deactivateCustomerH cid auth = do
+  requireInternal auth
+  mapCrmError <$> deactivateCustomer cid
+
+-- ---------------------------------------------------------------------------
+-- Helpers
+-- ---------------------------------------------------------------------------
+
+requireBff :: Error ServerError :> es => CrmAuthResult -> Eff es ()
+requireBff BffAuth{} = pure ()
+requireBff InternalAuth = throwError err403
+
+requireInternal :: Error ServerError :> es => CrmAuthResult -> Eff es ()
+requireInternal InternalAuth = pure ()
+requireInternal BffAuth{}   = throwError err403
+
+mapCrmError :: Either CrmDomainError a -> CrmResponse a
+mapCrmError (Right a) = Ok a
+mapCrmError (Left e)  = Err $ case e of
+  InviteNotFound _            -> NotFound "invite"
+  InviteAlreadyClaimed _      -> Conflict "invite already claimed"
+  InviteNotActive _           -> Conflict "invite not active"
+  IdpNotFound _               -> Conflict "idp not configured"
+  IdpNotEnabledForCustomers _ -> Conflict "idp not enabled for customers"
+  CustomerNotFound _          -> NotFound "customer"

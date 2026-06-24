@@ -1,6 +1,8 @@
 module Crm.Core.Repository
   ( -- * Effect
     CrmRepository (..)
+    -- * Config types
+  , IdpConfig (..)
     -- * Invite operations
   , findInvite
   , createInviteRecord
@@ -10,11 +12,8 @@ module Crm.Core.Repository
   , createCustomerRecord
   , customerExists
   , setCustomerActive
-    -- * Identity operations
-  , findCustomerByIdentity
-  , createIdentityRecord
     -- * IdP operations
-  , isIdpEnabledForCustomers
+  , getIdpConfig
   ) where
 
 import Crm.Types (CustomerId, IdentityProviderId, InviteDetails, InviteId, InviteSource)
@@ -22,6 +21,11 @@ import Data.Text (Text)
 import Data.Time (UTCTime)
 import Effectful
 import Effectful.TH (makeEffect)
+
+data IdpConfig = IdpConfig
+  { idpEnabled :: Bool
+  , idpType    :: Text
+  }
 
 data CrmRepository :: Effect where
   -- Invite
@@ -33,11 +37,8 @@ data CrmRepository :: Effect where
   CreateCustomerRecord :: CustomerId -> UTCTime -> CrmRepository m ()
   CustomerExists       :: CustomerId -> CrmRepository m Bool
   SetCustomerActive    :: CustomerId -> Bool -> UTCTime -> CrmRepository m ()
-  -- Identity
-  FindCustomerByIdentity :: IdentityProviderId -> Text -> CrmRepository m (Maybe CustomerId)
-  CreateIdentityRecord   :: IdentityProviderId -> Text -> CustomerId -> CrmRepository m ()
   -- IdP
-  IsIdpEnabledForCustomers :: IdentityProviderId -> CrmRepository m Bool
+  GetIdpConfig :: IdentityProviderId -> CrmRepository m (Maybe IdpConfig)
 
 type instance DispatchOf CrmRepository = Dynamic
 

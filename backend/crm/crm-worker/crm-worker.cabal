@@ -29,3 +29,4 @@ executable crm-worker
     , bytestring
     , hw-kafka-client   ^>=5.3
     , text
+    , time

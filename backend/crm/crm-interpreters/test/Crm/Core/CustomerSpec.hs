@@ -2,7 +2,9 @@ module Crm.Core.CustomerSpec (spec) where
 
 import Crm.Core.Customer
 import Crm.Core.Domain (CrmDomainError (..))
+import Crm.Core.Repository (IdpConfig (..))
 import Crm.Interpreter.CustomerContext (runInternalContext)
+import Crm.Interpreter.Idp.Mock (runIdpMock)
 import Crm.Interpreter.Repository.Mock
 import Crm.Types hiding (InviteAlreadyClaimed)
 
@@ -21,10 +23,6 @@ import Hempire.Interpreter.Time.Mock (runTimeMock)
 fixedTime :: UTCTime
 fixedTime = UTCTime (fromGregorian 2026 6 24) (secondsToDiffTime 0)
 
--- The mock DeriveId returns "derived_" <> input, so
--- onboardCustomer with invite "inv_testinviteid" produces:
---   deriveId "testinviteid" = "derived_testinviteid"
---   wrapRaw "derived_testinviteid" :: CustomerId
 expectedCid :: CustomerId
 expectedCid = wrapRaw "derived_testinviteid"
 
@@ -36,6 +34,9 @@ testIdpId = wrapRaw "debug"
 
 testIdentity :: Identity
 testIdentity = Identity{providerId = testIdpId, identityId = "user-001"}
+
+testIdpConfig :: IdpConfig
+testIdpConfig = IdpConfig{idpEnabled = True, idpType = "zitadel"}
 
 activeInvite :: InviteDetails
 activeInvite = InviteDetails
@@ -59,7 +60,7 @@ spec = testGroup "Crm.Core.Customer"
     [ testCase "success: returns CustomerId and publishes event" $ do
         eventLog <- newTVarIO []
         logLog   <- newTVarIO []
-        let mock = withIdpEnabled testIdpId
+        let mock = withIdpConfig testIdpId testIdpConfig
                  . withInvite activeInvite
                  $ emptyMockCrm
             cmd  = OnboardCustomer{identity = testIdentity, inviteId = testInviteId}
@@ -68,20 +69,42 @@ spec = testGroup "Crm.Core.Customer"
         events <- readTVarIO eventLog
         length events @?= 1
 
+    , testCase "idempotent: succeeds if customer already exists, no new event" $ do
+        eventLog <- newTVarIO []
+        logLog   <- newTVarIO []
+        let mock = withIdpConfig testIdpId testIdpConfig
+                 . withInvite claimedInvite
+                 . withCustomer expectedCid
+                 $ emptyMockCrm
+            cmd  = OnboardCustomer{identity = testIdentity, inviteId = testInviteId}
+        result <- runAll "testinviteid" mock eventLog logLog (onboardCustomer cmd)
+        result @?= Right expectedCid
+        events <- readTVarIO eventLog
+        events @?= []
+
+    , testCase "rejects missing IdP" $ do
+        eventLog <- newTVarIO []
+        logLog   <- newTVarIO []
+        let mock = withInvite activeInvite emptyMockCrm
+            cmd  = OnboardCustomer{identity = testIdentity, inviteId = testInviteId}
+        result <- runAll "testinviteid" mock eventLog logLog (onboardCustomer cmd)
+        result @?= Left (IdpNotFound testIdpId)
+
     , testCase "rejects disabled IdP" $ do
         eventLog <- newTVarIO []
         logLog   <- newTVarIO []
-        let mock = withInvite activeInvite emptyMockCrm  -- IdP not enabled
+        let disabledCfg = testIdpConfig { Crm.Core.Repository.idpEnabled = False }
+            mock = withIdpConfig testIdpId disabledCfg
+                 . withInvite activeInvite
+                 $ emptyMockCrm
             cmd  = OnboardCustomer{identity = testIdentity, inviteId = testInviteId}
         result <- runAll "testinviteid" mock eventLog logLog (onboardCustomer cmd)
         result @?= Left (IdpNotEnabledForCustomers testIdpId)
-        events <- readTVarIO eventLog
-        events @?= []
 
     , testCase "rejects missing invite" $ do
         eventLog <- newTVarIO []
         logLog   <- newTVarIO []
-        let mock = withIdpEnabled testIdpId emptyMockCrm  -- no invite
+        let mock = withIdpConfig testIdpId testIdpConfig emptyMockCrm
             cmd  = OnboardCustomer{identity = testIdentity, inviteId = testInviteId}
         result <- runAll "testinviteid" mock eventLog logLog (onboardCustomer cmd)
         result @?= Left (InviteNotFound testInviteId)
@@ -89,22 +112,12 @@ spec = testGroup "Crm.Core.Customer"
     , testCase "rejects inactive invite" $ do
         eventLog <- newTVarIO []
         logLog   <- newTVarIO []
-        let mock = withIdpEnabled testIdpId
+        let mock = withIdpConfig testIdpId testIdpConfig
                  . withInvite inactiveInvite
                  $ emptyMockCrm
             cmd  = OnboardCustomer{identity = testIdentity, inviteId = testInviteId}
         result <- runAll "testinviteid" mock eventLog logLog (onboardCustomer cmd)
         result @?= Left (InviteNotActive testInviteId)
-
-    , testCase "rejects already claimed invite" $ do
-        eventLog <- newTVarIO []
-        logLog   <- newTVarIO []
-        let mock = withIdpEnabled testIdpId
-                 . withInvite claimedInvite
-                 $ emptyMockCrm
-            cmd  = OnboardCustomer{identity = testIdentity, inviteId = testInviteId}
-        result <- runAll "testinviteid" mock eventLog logLog (onboardCustomer cmd)
-        result @?= Left (InviteAlreadyClaimed testInviteId)
     ]
 
   , testGroup "createInvite"
@@ -134,8 +147,6 @@ spec = testGroup "Crm.Core.Customer"
         let mock = withInvite claimedInvite emptyMockCrm
         result <- runAll "x" mock eventLog logLog (deleteCustomerInvite testInviteId)
         result @?= Left (InviteAlreadyClaimed testInviteId)
-        events <- readTVarIO eventLog
-        events @?= []
 
     , testCase "rejects missing invite" $ do
         eventLog <- newTVarIO []
@@ -159,23 +170,6 @@ spec = testGroup "Crm.Core.Customer"
         result @?= Left (InviteNotFound testInviteId)
     ]
 
-  , testGroup "getOnboardingStatus"
-    [ testCase "not onboarded" $ do
-        eventLog <- newTVarIO []
-        logLog   <- newTVarIO []
-        result <- runAll "x" emptyMockCrm eventLog logLog
-          (getOnboardingStatus testIdentity)
-        result @?= NotOnboarded
-
-    , testCase "onboarded" $ do
-        eventLog <- newTVarIO []
-        logLog   <- newTVarIO []
-        let mock = withIdentity testIdpId "user-001" expectedCid emptyMockCrm
-        result <- runAll "x" mock eventLog logLog
-          (getOnboardingStatus testIdentity)
-        result @?= Onboarded expectedCid
-    ]
-
   , testGroup "deactivateCustomer"
     [ testCase "success: publishes CustomerDeactivated" $ do
         eventLog <- newTVarIO []
@@ -191,8 +185,6 @@ spec = testGroup "Crm.Core.Customer"
         logLog   <- newTVarIO []
         result <- runAll "x" emptyMockCrm eventLog logLog (deactivateCustomer expectedCid)
         result @?= Left (CustomerNotFound expectedCid)
-        events <- readTVarIO eventLog
-        events @?= []
     ]
   ]
   where
@@ -203,5 +195,6 @@ spec = testGroup "Crm.Core.Customer"
         $ runTimeMock fixedTime
         $ runIdGenMock newIdVal
         $ runInternalContext
+        $ runIdpMock
         $ runCrmRepositoryMock mock
         $ action

@@ -10,6 +10,7 @@ data CrmDomainError
   = InviteNotFound InviteId
   | InviteAlreadyClaimed InviteId
   | InviteNotActive InviteId
+  | IdpNotFound IdentityProviderId
   | IdpNotEnabledForCustomers IdentityProviderId
   | CustomerNotFound CustomerId
   deriving stock (Show, Eq)

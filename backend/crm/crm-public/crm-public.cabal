@@ -19,6 +19,7 @@ library
     , base             ^>=4.20
     , aeson            ^>=2.2
     , hempire-effects
+    , http-api-data    ^>=0.7
     , optics-th        ^>=0.4
     , text
     , time

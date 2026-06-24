@@ -6,23 +6,33 @@ license:       NONE
 
 executable crm-api
   main-is:          Main.hs
-  other-modules:    Crm.Handlers
+  other-modules:
+    Crm.Auth
+    Crm.Handlers
   hs-source-dirs:   src
   default-language:   GHC2024
   default-extensions:
     OverloadedStrings
     LambdaCase
+    DuplicateRecordFields
+    TypeFamilies
   ghc-options:        -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base                ^>=4.20
+    , base                  ^>=4.20
     , crm-public
     , crm-core
     , crm-interpreters
     , hempire-effects
     , hempire-interpreters
-    , aeson               ^>=2.2
-    , effectful           ^>=2.3
-    , servant             ^>=0.20
-    , servant-server      ^>=0.20
+    , aeson                 ^>=2.2
+    , bytestring
+    , effectful             ^>=2.3
+    , http-client           ^>=0.7
+    , http-client-tls       ^>=0.3
+    , jose                  ^>=0.11
+    , lens
+    , servant               ^>=0.20
+    , servant-server        ^>=0.20
     , text
-    , warp                ^>=3.4
+    , wai                   ^>=3.2
+    , warp                  ^>=3.4

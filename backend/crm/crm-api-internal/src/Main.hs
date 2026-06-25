@@ -1,14 +1,12 @@
 module Main (main) where
 
 import Crm.Auth
-import Crm.Core (CrmRepository, Idp)
+import Crm.Core (CrmRepository)
 import Crm.Core.Domain (CrmDomainError)
 import Crm.Handlers
-import Crm.Interpreter.Idp.Zitadel (ZitadelConfig (..), runIdpZitadel)
 import Crm.Interpreter.Repository.Postgres (runCrmRepositoryPostgres)
 import Crm.Types
 import Data.IORef (newIORef)
-import Data.Text qualified as T
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
 import Hempire.AppEnv (AppEnv (..), newAppEnv)
@@ -20,7 +18,7 @@ import Hempire.Effect.Logging (Logging)
 import Hempire.Effect.Time (Time)
 import Hempire.Id (CustomerId)
 import Hempire.Interpreter.Auth.Jwt (fetchJwks)
-import Hempire.Interpreter.CustomerContext (runCustomerContext, runInternalContext)
+import Hempire.Interpreter.CustomerContext (runInternalContext)
 import Hempire.Interpreter.Database.Postgres (runDatabasePostgres)
 import Hempire.Interpreter.Events.Outbox (runEventsOutbox)
 import Hempire.Interpreter.IdGen.Real (runIdGenReal)
@@ -28,19 +26,23 @@ import Hempire.Interpreter.Logging.FastLogger (runLoggingFastLogger)
 import Hempire.Interpreter.Time.System (runTimeSystem)
 import Network.Wai.Handler.Warp qualified as Warp
 import Servant
-import System.Environment (lookupEnv)
 
-type CrmAuth = AuthProtect "crm-customer"
+type InternalAuth' = AuthProtect "crm-internal"
 
 type API
-  = "onboarding" :> CrmAuth :> ReqBody '[JSON] OnboardRequest
-      :> Post '[JSON] (CrmResponse CustomerId)
+  =    "invites"   :> InternalAuth' :> ReqBody '[JSON] CreateInvite
+         :> Post '[JSON] (CrmResponse InviteId)
+  :<|> "invites"   :> InternalAuth' :> Capture "id" InviteId
+         :> Get '[JSON] (CrmResponse InviteDetails)
+  :<|> "invites"   :> InternalAuth' :> Capture "id" InviteId
+         :> Delete '[JSON] (CrmResponse ())
+  :<|> "customers" :> InternalAuth' :> Capture "id" CustomerId
+         :> "deactivate" :> Post '[JSON] (CrmResponse ())
 
 type App a = Eff
   '[ Error ServerError
    , Error CrmDomainError
    , CustomerContext
-   , Idp
    , CrmRepository
    , IdGen
    , Events
@@ -50,8 +52,8 @@ type App a = Eff
    , IOE
    ] a
 
-appToHandler :: AppEnv -> ZitadelConfig -> CustomerAuth -> App a -> Handler a
-appToHandler env zCfg auth action = do
+appToHandler :: AppEnv -> InternalAuth -> App a -> Handler a
+appToHandler env _auth action = do
   outcome <- liftIO $ runEff
     $ runLoggingFastLogger (appLoggerSet env)
     $ runTimeSystem
@@ -59,51 +61,35 @@ appToHandler env zCfg auth action = do
     $ runEventsOutbox
     $ runIdGenReal
     $ runCrmRepositoryPostgres
-    $ runIdpZitadel zCfg
-    $ runContextFor (cauthCustomerId auth)
+    $ runInternalContext
     $ runError @CrmDomainError
     $ runError @ServerError action
   case outcome of
     Left dbErr                     -> liftIO (logDbError dbErr) >> throwError err500
-    Right (Left _)                 -> throwError err500  -- unreachable: all domain errors caught in handlers
+    Right (Left _)                 -> throwError err500  -- unreachable
     Right (Right (Left (_, sErr))) -> throwError sErr
     Right (Right (Right a))        -> pure a
   where
     logDbError :: DatabaseError -> IO ()
-    logDbError err = putStrLn ("[crm-api] database error: " <> show err)
+    logDbError err = putStrLn ("[crm-api-internal] database error: " <> show err)
 
-runContextFor :: Maybe CustomerId -> Eff (CustomerContext : es) a -> Eff es a
-runContextFor (Just cid) = runCustomerContext cid
-runContextFor Nothing    = runInternalContext
-
-server :: AppEnv -> ZitadelConfig -> Server API
-server env zCfg =
-  \auth req -> run auth (onboardCustomerH auth req)
+server :: AppEnv -> Server API
+server env =
+       (\auth req -> run auth (createInviteH auth req))
+  :<|> (\auth iid -> run auth (getInviteH auth iid))
+  :<|> (\auth iid -> run auth (deleteInviteH auth iid))
+  :<|> (\auth cid -> run auth (deactivateCustomerH auth cid))
   where
-    run :: forall a. CustomerAuth -> App a -> Handler a
-    run = appToHandler env zCfg
+    run :: forall a. InternalAuth -> App a -> Handler a
+    run = appToHandler env
 
 main :: IO ()
 main = do
   env    <- newAppEnv
-  jwtCfg <- loadCustomerJwtConfig
-  zCfg   <- loadZitadelConfig
+  jwtCfg <- loadInternalJwtConfig
   keys   <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
-  let authHandler = makeCustomerAuthHandler jwtCfg keys
+  let authHandler = makeInternalAuthHandler jwtCfg keys
       ctx         = authHandler :. EmptyContext
-      app         = serveWithContext (Proxy @API) ctx (server env zCfg)
-  putStrLn "crm-api listening on :8080"
-  Warp.run 8080 app
-
-loadZitadelConfig :: IO ZitadelConfig
-loadZitadelConfig = do
-  apiUrl  <- getEnv "ZITADEL_API_URL"       "http://localhost:8081"
-  cidStr  <- getEnv "ZITADEL_CLIENT_ID"     ""
-  csecret <- getEnv "ZITADEL_CLIENT_SECRET" ""
-  pure ZitadelConfig
-    { zCfgApiUrl       = T.pack apiUrl
-    , zCfgClientId     = T.pack cidStr
-    , zCfgClientSecret = T.pack csecret
-    }
-  where
-    getEnv k d = maybe d id <$> lookupEnv k
+      app         = serveWithContext (Proxy @API) ctx (server env)
+  putStrLn "crm-api-internal listening on :8090"
+  Warp.run 8090 app

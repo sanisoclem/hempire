@@ -1,95 +1,79 @@
+-- see: https://github.com/haskell-servant/servant/blob/5a6f794d01b55633b226c378551cfea5ca882090/doc/tutorial/Authentication.lhs#L396
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Crm.Auth
-  ( CrmAuthResult (..)
-  , CrmJwtConfig (..)
-  , loadCrmJwtConfig
-  , makeCrmAuthHandler
+  ( CustomerAuth (..)
+  , JwtConfig (..)
+  , loadCustomerJwtConfig
+  , makeCustomerAuthHandler
   ) where
 
-import Control.Lens ((^.), at)
 import Control.Monad.IO.Class (liftIO)
-import Crm.Types (CustomerId)
-import Crypto.JWT (ClaimsSet, StringOrURI, claimSub, unregisteredClaims)
 import Crypto.JOSE.JWK (JWKSet)
-import Data.Aeson qualified as A
 import Data.ByteString qualified as BS
 import Data.IORef (IORef, readIORef)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Hempire.DomainId (DomainId (..), parseId)
-import Hempire.Interpreter.Auth.Jwt (validateJwt)
+import Data.Text.Encoding (decodeUtf8)
+import Hempire.Id (CustomerId)
+import Hempire.DomainId (parseId)
+import Hempire.Identity (IdentityId)
+import Hempire.Interpreter.Auth.Jwt
+  ( extractCustomerIdText
+  , extractIdentityId
+  , validateJwt
+  )
 import Network.Wai (Request, requestHeaders)
-import Servant (Handler, ServerError, err401, throwError)
+import Servant (Handler, err401)
 import Servant.API.Experimental.Auth (AuthProtect)
 import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
+import Servant (throwError)
 import System.Environment (lookupEnv)
+import Data.Maybe (fromMaybe)
 
-type instance AuthServerData (AuthProtect "crm-jwt") = CrmAuthResult
 
-data CrmAuthResult
-  = BffAuth { authSub :: Text, authCustomerId :: Maybe CustomerId }
-  | InternalAuth
-
-data CrmJwtConfig = CrmJwtConfig
-  { cfgBffIssuer      :: Text
-  , cfgBffJwksUri     :: String
-  , cfgInternalIssuer :: Text
-  , cfgIntJwksUri     :: String
-  , cfgAudience       :: Text
+data CustomerAuth = CustomerAuth
+  { cauthIdentity   :: IdentityId      -- iss + sub from JWT
+  , cauthCustomerId :: Maybe CustomerId -- Nothing if not yet onboarded
   }
 
-loadCrmJwtConfig :: IO CrmJwtConfig
-loadCrmJwtConfig = do
-  bffIss  <- getEnv "BFF_ISSUER"        "http://localhost:8081"
-  bffJwks <- getEnv "BFF_JWKS_URI"      "http://localhost:8081/oauth/v2/keys"
-  intIss  <- getEnv "INTERNAL_ISSUER"   "http://localhost:8081"
-  intJwks <- getEnv "INTERNAL_JWKS_URI" "http://localhost:8081/oauth/v2/keys"
-  aud     <- getEnv "JWT_AUDIENCE"      "https://hempire.com/crm-api"
-  pure CrmJwtConfig
-    { cfgBffIssuer      = T.pack bffIss
-    , cfgBffJwksUri     = bffJwks
-    , cfgInternalIssuer = T.pack intIss
-    , cfgIntJwksUri     = intJwks
-    , cfgAudience       = T.pack aud
+type instance AuthServerData (AuthProtect "crm-customer") = CustomerAuth
+
+data JwtConfig = JwtConfig
+  { cfgJwksUri  :: String
+  , cfgIssuer   :: Text
+  , cfgAudience :: Text  -- Hempire project Resource ID in customer Zitadel
+  }
+
+loadCustomerJwtConfig :: IO JwtConfig
+loadCustomerJwtConfig = do
+  jwksUri  <- getEnv "CRM_JWKS_URI"  "http://localhost:8081/oauth/v2/keys"
+  issuer   <- getEnv "CRM_ISSUER"    "http://localhost:8081"
+  audience <- getEnv "CRM_AUDIENCE"  ""
+  pure JwtConfig
+    { cfgJwksUri  = jwksUri
+    , cfgIssuer   = T.pack issuer
+    , cfgAudience = T.pack audience
     }
   where
-    getEnv k d = maybe d id <$> lookupEnv k
+    getEnv k d = fromMaybe d <$> lookupEnv k
 
-makeCrmAuthHandler
-  :: CrmJwtConfig -> IORef JWKSet -> IORef JWKSet -> AuthHandler Request CrmAuthResult
-makeCrmAuthHandler cfg bffRef intRef = mkAuthHandler $ \req -> do
-  token     <- extractBearer req
-  bffKeys   <- liftIO (readIORef bffRef)
-  bffResult <- liftIO (validateJwt bffKeys (cfgAudience cfg) (cfgBffIssuer cfg) token)
-  case bffResult of
-    Right claims -> pure (parseBffClaims claims)
-    Left _       -> do
-      intKeys   <- liftIO (readIORef intRef)
-      intResult <- liftIO (validateJwt intKeys (cfgAudience cfg) (cfgInternalIssuer cfg) token)
-      case intResult of
-        Right _ -> pure InternalAuth
-        Left _  -> throwError err401
+makeCustomerAuthHandler
+  :: JwtConfig -> IORef JWKSet -> AuthHandler Request CustomerAuth
+makeCustomerAuthHandler cfg keysRef = mkAuthHandler $ \req -> do
+  token  <- extractBearer req
+  keys   <- liftIO (readIORef keysRef)
+  result <- liftIO (validateJwt keys (cfgAudience cfg) (cfgIssuer cfg) token)
+  case result of
+    Left _       -> throwError err401
+    Right claims ->
+      case extractIdentityId claims of
+        Nothing       -> throwError err401
+        Just identity ->
+          let mCid = extractCustomerIdText claims >>= either (const Nothing) Just . parseId
+          in pure CustomerAuth{cauthIdentity = identity, cauthCustomerId = mCid}
 
 extractBearer :: Request -> Handler Text
 extractBearer req =
   case lookup "authorization" (requestHeaders req) of
     Just h | "Bearer " `BS.isPrefixOf` h -> pure (decodeUtf8 (BS.drop 7 h))
     _                                     -> throwError err401
-
-parseBffClaims :: ClaimsSet -> CrmAuthResult
-parseBffClaims claims =
-  let sub  = maybe "" stringOrUriText (claims ^. claimSub)
-      mCid = claims ^. unregisteredClaims . at customerIdClaim >>= \case
-               A.String t -> case parseId t of
-                 Right cid -> Just cid
-                 Left _    -> Nothing
-               _ -> Nothing
-  in BffAuth{authSub = sub, authCustomerId = mCid}
-
-customerIdClaim :: Text
-customerIdClaim = "https://hempire.com/customer_id"
-
-stringOrUriText :: StringOrURI -> Text
-stringOrUriText sOrU = case A.toJSON sOrU of
-  A.String t -> t
-  _          -> ""

@@ -5,7 +5,6 @@ module Hempire.Interpreter.Auth.Mock
 import Data.Set qualified as Set
 import Effectful
 import Effectful.Dispatch.Dynamic
-
 import Hempire.Effect.Auth (Auth (..), AuthError (..), Principal (..))
 
 runAuthMock :: Maybe Principal -> Eff (Auth : es) a -> Eff es a

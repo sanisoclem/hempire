@@ -18,8 +18,8 @@ library
   import:           shared
   hs-source-dirs:   src
   exposed-modules:
-    Hempire.DomainId
     Hempire.Effect.Auth
+    Hempire.Effect.CustomerContext
     Hempire.Effect.Database
     Hempire.Effect.Events
     Hempire.Effect.IdGen
@@ -28,6 +28,7 @@ library
     Hempire.Prelude
   build-depends:
     , base              ^>=4.20
+    , hempire-public
     , effectful         ^>=2.3
     , effectful-core    ^>=2.3
     , effectful-th      ^>=1.0

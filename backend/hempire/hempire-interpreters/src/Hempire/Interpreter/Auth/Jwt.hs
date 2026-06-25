@@ -1,19 +1,25 @@
 module Hempire.Interpreter.Auth.Jwt
   ( fetchJwks
   , validateJwt
+  , extractIdentityId
+  , extractCustomerIdText
+  , hasZitadelRole
   ) where
 
-import Control.Lens ((^.))
+import Control.Lens ((^.), at)
 import Control.Monad.Trans.Except (runExceptT)
 import Crypto.JOSE.JWK (JWKSet (..))
 import Crypto.JWT
 import Data.Aeson (eitherDecode)
 import Data.Aeson qualified as A
+import Data.Aeson.Key qualified as AK
+import Data.Aeson.KeyMap qualified as AKM
 import Data.ByteString.Lazy qualified as BSL
 import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
+import Hempire.Identity (IdentityId (..))
 import Network.HTTP.Client (httpLbs, parseRequest, responseBody)
 import Network.HTTP.Client.TLS (newTlsManager)
 
@@ -42,6 +48,32 @@ validateJwt jwks audience issuer token = do
           if claims ^. claimIss == Just iss
             then Right claims
             else Left "JWT issuer mismatch"
+
+-- | Build an 'IdentityId' from the @iss@ and @sub@ claims of a validated JWT.
+extractIdentityId :: ClaimsSet -> Maybe IdentityId
+extractIdentityId claims = do
+  issUri <- claims ^. claimIss
+  subUri <- claims ^. claimSub
+  pure IdentityId
+    { identityIssuer = stringOrUriText issUri
+    , identitySub    = stringOrUriText subUri
+    }
+
+-- | Extract the @https://hempire.com/customer_id@ custom claim as raw text.
+extractCustomerIdText :: ClaimsSet -> Maybe Text
+extractCustomerIdText claims =
+  claims ^. unregisteredClaims . at "https://hempire.com/customer_id" >>= \case
+    A.String t -> Just t
+    _          -> Nothing
+
+-- | Check whether a Zitadel project role is present in the token.
+-- Zitadel encodes roles as:
+-- @"urn:zitadel:iam:org:project:roles": { "<roleName>": { "<orgId>": "<displayName>" } }@
+hasZitadelRole :: Text -> ClaimsSet -> Bool
+hasZitadelRole roleName claims =
+  case claims ^. unregisteredClaims . at "urn:zitadel:iam:org:project:roles" of
+    Just (A.Object obj) -> AK.fromText roleName `AKM.member` obj
+    _                   -> False
 
 stringOrUriText :: StringOrURI -> Text
 stringOrUriText sOrU = case A.toJSON sOrU of

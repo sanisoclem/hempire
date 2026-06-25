@@ -16,9 +16,10 @@ import Data.Text (Text)
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.TH (makeEffect)
+import Hempire.Identity (IdentityId)
 
 data Principal = Principal
-  { principalId          :: Text
+  { principalIdentity    :: IdentityId
   , principalPermissions :: Set Permission
   }
   deriving stock (Show, Eq)

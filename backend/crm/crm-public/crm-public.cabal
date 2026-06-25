@@ -5,7 +5,12 @@ synopsis:      CRM domain types — events, commands, responses
 license:       NONE
 
 library
-  exposed-modules:  Crm.Types
+  exposed-modules:
+    Crm.Types
+    Crm.Types.Invite
+    Crm.Types.Command
+    Crm.Types.Event
+    Crm.Types.Response
   hs-source-dirs:   src
   default-language:   GHC2024
   default-extensions:
@@ -17,8 +22,8 @@ library
   ghc-options:        -Wall
   build-depends:
     , base             ^>=4.20
+    , hempire-public
     , aeson            ^>=2.2
-    , hempire-effects
     , http-api-data    ^>=0.7
     , optics-th        ^>=0.4
     , text

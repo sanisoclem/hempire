@@ -6,7 +6,6 @@ import Data.IORef (IORef, readIORef)
 import Data.Set qualified as Set
 import Effectful
 import Effectful.Dispatch.Dynamic
-
 import Hempire.Effect.Auth (Auth (..), AuthError (..), Principal (..))
 
 runAuthIORef :: IOE :> es => IORef (Maybe Principal) -> Eff (Auth : es) a -> Eff es a

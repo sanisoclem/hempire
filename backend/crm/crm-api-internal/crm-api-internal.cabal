@@ -1,10 +1,10 @@
 cabal-version: 3.0
-name:          crm-api
+name:          crm-api-internal
 version:       0.1.0.0
-synopsis:      CRM customer-facing HTTP API
+synopsis:      CRM internal HTTP API (invite management + customer deactivation)
 license:       NONE
 
-executable crm-api
+executable crm-api-internal
   main-is:          Main.hs
   other-modules:
     Crm.Auth
@@ -35,5 +35,3 @@ executable crm-api
     , text
     , wai                   ^>=3.2
     , warp                  ^>=3.4
-    , errors                ^>=2.3
-    , extra                 ^>=1.8

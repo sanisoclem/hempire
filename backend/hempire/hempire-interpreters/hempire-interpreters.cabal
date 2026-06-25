@@ -20,6 +20,7 @@ library
     Hempire.Interpreter.Auth.IORef
     Hempire.Interpreter.Auth.Jwt
     Hempire.Interpreter.Auth.Mock
+    Hempire.Interpreter.CustomerContext
     Hempire.Interpreter.Database.Postgres
     Hempire.Interpreter.Database.Mock
     Hempire.Interpreter.Events.Outbox
@@ -32,6 +33,7 @@ library
     Hempire.Interpreter.Time.Mock
   build-depends:
     , base              ^>=4.20
+    , hempire-public
     , hempire-effects
     , effectful         ^>=2.3
     , effectful-core    ^>=2.3

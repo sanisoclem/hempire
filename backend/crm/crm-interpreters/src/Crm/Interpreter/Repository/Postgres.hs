@@ -67,12 +67,12 @@ runCrmRepositoryPostgres = interpret $ \_env -> \case
       "UPDATE customers SET active = ?, updated_on = ? WHERE customer_id = ?"
       (active, ts, showId cid)
 
-  -- IdP ---------------------------------------------------------------------
-  GetIdpConfig idpId -> do
+  -- IdP: identity_provider_id is the issuer URL ----------------------------
+  GetIdpConfig issuer -> do
     rows <- runQuery
       "SELECT enable_customers, idp_type \
       \FROM identity_providers WHERE identity_provider_id = ? LIMIT 1"
-      (Only (showId idpId))
+      (Only issuer)
     pure $ case (rows :: [(Bool, Text)]) of
       (enabled, typ) : _ -> Just IdpConfig{idpEnabled = enabled, idpType = typ}
       []                 -> Nothing

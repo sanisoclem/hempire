@@ -1,81 +1,41 @@
 module Crm.Handlers
-  ( onboardCustomerH
-  , createInviteH
-  , getInviteH
-  , deleteInviteH
-  , deactivateCustomerH
+  ( OnboardRequest (..)
+  , onboardCustomerH
   ) where
 
-import Crm.Auth (CrmAuthResult (..))
-import Crm.Core.Customer
-import Crm.Core.Domain (CrmDomainError (..))
-import Crm.Types hiding (InviteAlreadyClaimed)
+import Crm.Auth (CustomerAuth (..))
+import Crm.Core.Customer (CrmEffect, onboardCustomer)
+import Crm.Core.Domain (CrmDomainError)
+import Crm.Core.Idp (Idp)
+import Crm.Interpreter.Error (mapCrmError)
+import Crm.Types
+import Data.Aeson (FromJSON, ToJSON)
 import Effectful
-import Effectful.Error.Static (Error, throwError)
-import Servant (ServerError, err403)
+import Effectful.Error.Static (Error, tryError)
+import GHC.Generics (Generic)
+import Hempire.Effect.CustomerContext (CustomerContext, getCustomerId)
+import Servant (ServerError)
 
 type App es =
   ( CrmEffect es
+  , Idp :> es
   , Error ServerError :> es
   )
 
+newtype OnboardRequest = OnboardRequest
+  { inviteId :: InviteId }
+  deriving stock (Show, Eq, Generic)
+  deriving anyclass (FromJSON, ToJSON)
+
 onboardCustomerH
   :: App es
-  => CrmAuthResult -> OnboardCustomer -> Eff es (CrmResponse CustomerId)
-onboardCustomerH auth cmd = do
-  requireBff auth
-  case auth of
-    BffAuth{authCustomerId = Just _} ->
-      pure (Err (Conflict "already onboarded"))
-    _ ->
-      mapCrmError <$> onboardCustomer cmd
-
-createInviteH
-  :: App es
-  => CrmAuthResult -> CreateInvite -> Eff es (CrmResponse InviteId)
-createInviteH auth cmd = do
-  requireInternal auth
-  mapCrmError <$> createInvite cmd
-
-getInviteH
-  :: App es
-  => InviteId -> CrmAuthResult -> Eff es (CrmResponse InviteDetails)
-getInviteH iid auth = do
-  requireInternal auth
-  mapCrmError <$> getCustomerInvite iid
-
-deleteInviteH
-  :: App es
-  => InviteId -> CrmAuthResult -> Eff es (CrmResponse ())
-deleteInviteH iid auth = do
-  requireInternal auth
-  mapCrmError <$> deleteCustomerInvite iid
-
-deactivateCustomerH
-  :: App es
-  => CustomerId -> CrmAuthResult -> Eff es (CrmResponse ())
-deactivateCustomerH cid auth = do
-  requireInternal auth
-  mapCrmError <$> deactivateCustomer cid
-
--- ---------------------------------------------------------------------------
--- Helpers
--- ---------------------------------------------------------------------------
-
-requireBff :: Error ServerError :> es => CrmAuthResult -> Eff es ()
-requireBff BffAuth{} = pure ()
-requireBff InternalAuth = throwError err403
-
-requireInternal :: Error ServerError :> es => CrmAuthResult -> Eff es ()
-requireInternal InternalAuth = pure ()
-requireInternal BffAuth{}   = throwError err403
-
-mapCrmError :: Either CrmDomainError a -> CrmResponse a
-mapCrmError (Right a) = Ok a
-mapCrmError (Left e)  = Err $ case e of
-  InviteNotFound _            -> NotFound "invite"
-  InviteAlreadyClaimed _      -> Conflict "invite already claimed"
-  InviteNotActive _           -> Conflict "invite not active"
-  IdpNotFound _               -> Conflict "idp not configured"
-  IdpNotEnabledForCustomers _ -> Conflict "idp not enabled for customers"
-  CustomerNotFound _          -> NotFound "customer"
+  => CustomerAuth -> OnboardRequest -> Eff es (CrmResponse CustomerId)
+onboardCustomerH auth (OnboardRequest{inviteId}) = do
+  mCid <- getCustomerId
+  case mCid of
+    Just _  -> pure (Err (Conflict "already onboarded"))
+    Nothing ->
+      tryError @CrmDomainError
+        (onboardCustomer OnboardCustomer{identity = cauthIdentity auth, inviteId}) >>= \case
+          Left (_, err) -> pure (Err (mapCrmError err))
+          Right cid     -> pure (Ok cid)

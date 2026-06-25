@@ -1,22 +1,17 @@
 module Crm.Core.Repository
-  ( -- * Effect
-    CrmRepository (..)
-    -- * Config types
+  ( CrmRepository (..)
   , IdpConfig (..)
-    -- * Invite operations
   , findInvite
   , createInviteRecord
   , claimInvite
   , deleteInviteRecord
-    -- * Customer operations
   , createCustomerRecord
   , customerExists
   , setCustomerActive
-    -- * IdP operations
   , getIdpConfig
   ) where
 
-import Crm.Types (CustomerId, IdentityProviderId, InviteDetails, InviteId, InviteSource)
+import Crm.Types (CustomerId, InviteDetails, InviteId, InviteSource)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Effectful
@@ -28,17 +23,14 @@ data IdpConfig = IdpConfig
   }
 
 data CrmRepository :: Effect where
-  -- Invite
-  FindInvite         :: InviteId -> CrmRepository m (Maybe InviteDetails)
-  CreateInviteRecord :: InviteId -> InviteSource -> UTCTime -> Maybe Text -> CrmRepository m ()
-  ClaimInvite        :: InviteId -> CustomerId -> CrmRepository m ()
-  DeleteInviteRecord :: InviteId -> CrmRepository m ()
-  -- Customer
+  FindInvite           :: InviteId -> CrmRepository m (Maybe InviteDetails)
+  CreateInviteRecord   :: InviteId -> InviteSource -> UTCTime -> Maybe Text -> CrmRepository m ()
+  ClaimInvite          :: InviteId -> CustomerId -> CrmRepository m ()
+  DeleteInviteRecord   :: InviteId -> CrmRepository m ()
   CreateCustomerRecord :: CustomerId -> UTCTime -> CrmRepository m ()
   CustomerExists       :: CustomerId -> CrmRepository m Bool
   SetCustomerActive    :: CustomerId -> Bool -> UTCTime -> CrmRepository m ()
-  -- IdP
-  GetIdpConfig :: IdentityProviderId -> CrmRepository m (Maybe IdpConfig)
+  GetIdpConfig         :: Text -> CrmRepository m (Maybe IdpConfig)
 
 type instance DispatchOf CrmRepository = Dynamic
 

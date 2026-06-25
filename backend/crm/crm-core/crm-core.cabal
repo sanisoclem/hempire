@@ -21,7 +21,6 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Crm.Core
-    Crm.Core.CustomerContext
     Crm.Core.Domain
     Crm.Core.Idp
     Crm.Core.Customer
@@ -29,26 +28,37 @@ library
   build-depends:
     , base              ^>=4.20
     , crm-public
+    , hempire-public
     , hempire-effects
+    , effectful         ^>=2.3
     , effectful-core    ^>=2.3
     , effectful-th      ^>=1.0
     , aeson             ^>=2.2
     , optics-core       ^>=0.4
     , text
     , time
-    , transformers
 
 test-suite crm-core-test
   import:           shared
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
-  other-modules:    Crm.Core.CustomerSpec
+  other-modules:
+    Crm.Core.CustomerSpec
+    Crm.Interpreter.Idp.Mock
+    Crm.Interpreter.Repository.Mock
   hs-source-dirs:   test
   build-depends:
     , base
     , crm-core
     , crm-public
+    , hempire-public
     , hempire-effects
+    , hempire-interpreters
+    , effectful         ^>=2.3
+    , containers
+    , optics-core       ^>=0.4
+    , stm
     , tasty             ^>=1.5
     , tasty-hunit       ^>=0.10
     , text
+    , time

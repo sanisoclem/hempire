@@ -1,7 +1,5 @@
 module Crm.Core.Customer
-  ( -- * Effect constraint alias
-    CrmEffect
-    -- * Operations
+  ( CrmEffect
   , onboardCustomer
   , createInvite
   , deleteCustomerInvite
@@ -10,16 +8,16 @@ module Crm.Core.Customer
   ) where
 
 import Control.Monad (unless)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
-import Crm.Core.CustomerContext (CustomerContext)
 import Crm.Core.Domain (CrmDomainError (..))
 import Crm.Core.Idp (Idp, setIdentityCustomer)
 import Crm.Core.Repository
 import Crm.Types hiding (InviteAlreadyClaimed)
 import Data.Aeson (toJSON)
+import Data.Text (Text)
 import Effectful
+import Effectful.Error.Static (Error, throwError)
 import Hempire.DomainId (DomainId (..), showId)
+import Hempire.Effect.CustomerContext (CustomerContext)
 import Hempire.Effect.Events (Events, publishEvent)
 import Hempire.Effect.IdGen (IdGen, deriveId, newId)
 import Hempire.Effect.Logging (Logging, logInfo)
@@ -27,118 +25,109 @@ import Hempire.Effect.Time (Time, getUtcTimestampNow)
 import Optics.Core
 
 type CrmEffect es =
-  ( CrmRepository   :> es
-  , CustomerContext :> es
-  , Idp             :> es
-  , IdGen           :> es
-  , Time            :> es
-  , Events          :> es
-  , Logging         :> es
+  ( CrmRepository        :> es
+  , CustomerContext      :> es
+  , IdGen                :> es
+  , Time                 :> es
+  , Events               :> es
+  , Logging              :> es
+  , Error CrmDomainError :> es
   )
 
-type Crm es = ExceptT CrmDomainError (Eff es)
-
 onboardCustomer
-  :: CrmEffect es
+  :: (CrmEffect es, Idp :> es)
   => OnboardCustomer
-  -> Eff es (Either CrmDomainError CustomerId)
-onboardCustomer cmd = runExceptT $ do
-  let idpId   = cmd ^. #identity % #providerId
-      identId = cmd ^. #identity % #identityId
+  -> Eff es CustomerId
+onboardCustomer cmd = do
+  let issuer  = cmd ^. #identity % #identityIssuer
+      identId = cmd ^. #identity % #identitySub
       iid     = cmd ^. #inviteId
-  cfg    <- ensureIdpExists idpId
-  ensureIdpEnabled idpId cfg
+  cfg    <- ensureIdpExists issuer
+  ensureIdpEnabled issuer cfg
   invite <- requireInvite iid
   ensureInviteActive iid invite
-  rawCid <- lift (deriveId (getRaw iid))
+  rawCid <- deriveId (getRaw iid)
   let cid = wrapRaw rawCid :: CustomerId
-  alreadyExists <- lift (customerExists cid)
+  alreadyExists <- customerExists cid
   unless alreadyExists $ do
-    now <- lift getUtcTimestampNow
-    lift $ createCustomerRecord cid now
-    lift $ claimInvite iid cid
-    lift $ publishEvent "crm.events"
+    now <- getUtcTimestampNow
+    createCustomerRecord cid now
+    claimInvite iid cid
+    publishEvent "crm.events"
       CustomerOnboarded{customerId = cid, inviteId = iid, at = now}
-    lift $ logInfo "crm.customer.onboarded"
+    logInfo "crm.customer.onboarded"
       [("customerId", toJSON (showId cid)), ("inviteId", toJSON (showId iid))]
-  lift $ setIdentityCustomer (idpType cfg) identId cid
+  setIdentityCustomer (idpType cfg) identId cid
   pure cid
 
 createInvite
   :: CrmEffect es
   => CreateInvite
-  -> Eff es (Either CrmDomainError InviteId)
+  -> Eff es InviteId
 createInvite cmd = do
   now <- getUtcTimestampNow
   raw <- newId
   let iid = wrapRaw raw :: InviteId
   createInviteRecord iid (cmd ^. #source) now (cmd ^. #comment)
   publishEvent "crm.events"
-    InviteCreated
-      { inviteId = iid
-      , source   = cmd ^. #source
-      , at       = now
-      }
+    InviteCreated{inviteId = iid, source = cmd ^. #source, at = now}
   logInfo "crm.invite.created"
     [("inviteId", toJSON (showId iid)), ("source", toJSON (cmd ^. #source))]
-  pure (Right iid)
+  pure iid
 
 deleteCustomerInvite
   :: CrmEffect es
   => InviteId
-  -> Eff es (Either CrmDomainError ())
-deleteCustomerInvite iid = runExceptT $ do
+  -> Eff es ()
+deleteCustomerInvite iid = do
   invite <- requireInvite iid
   ensureInviteUnclaimed iid invite
-  now <- lift getUtcTimestampNow
-  lift $ deleteInviteRecord iid
-  lift $ publishEvent "crm.events" InviteDeleted{inviteId = iid, at = now}
-  lift $ logInfo "crm.invite.deleted" [("inviteId", toJSON (showId iid))]
+  now <- getUtcTimestampNow
+  deleteInviteRecord iid
+  publishEvent "crm.events" InviteDeleted{inviteId = iid, at = now}
+  logInfo "crm.invite.deleted" [("inviteId", toJSON (showId iid))]
 
 getCustomerInvite
   :: CrmEffect es
   => InviteId
-  -> Eff es (Either CrmDomainError InviteDetails)
+  -> Eff es InviteDetails
 getCustomerInvite iid =
-  maybe (Left (InviteNotFound iid)) Right <$> findInvite iid
+  findInvite iid >>= maybe (throwError (InviteNotFound iid)) pure
 
 deactivateCustomer
   :: CrmEffect es
   => CustomerId
-  -> Eff es (Either CrmDomainError ())
-deactivateCustomer cid = runExceptT $ do
+  -> Eff es ()
+deactivateCustomer cid = do
   ensureCustomerExists cid
-  now <- lift getUtcTimestampNow
-  lift $ setCustomerActive cid False now
-  lift $ publishEvent "crm.events" CustomerDeactivated{customerId = cid, at = now}
-  lift $ logInfo "crm.customer.deactivated" [("customerId", toJSON (showId cid))]
+  now <- getUtcTimestampNow
+  setCustomerActive cid False now
+  publishEvent "crm.events"
+    CustomerStatusChanged{customerId = cid, active = False, at = now}
+  logInfo "crm.customer.deactivated" [("customerId", toJSON (showId cid))]
 
--- ---------------------------------------------------------------------------
--- Private guard helpers
--- ---------------------------------------------------------------------------
+ensureIdpExists :: CrmEffect es => Text -> Eff es IdpConfig
+ensureIdpExists issuer =
+  getIdpConfig issuer >>= maybe (throwError (IdpNotFound issuer)) pure
 
-ensureIdpExists :: CrmRepository :> es => IdentityProviderId -> Crm es IdpConfig
-ensureIdpExists idpId =
-  lift (getIdpConfig idpId) >>= maybe (throwE (IdpNotFound idpId)) pure
+ensureIdpEnabled :: CrmEffect es => Text -> IdpConfig -> Eff es ()
+ensureIdpEnabled issuer cfg =
+  unless (idpEnabled cfg) $ throwError (IdpNotEnabledForCustomers issuer)
 
-ensureIdpEnabled :: IdentityProviderId -> IdpConfig -> Crm es ()
-ensureIdpEnabled idpId cfg =
-  unless (idpEnabled cfg) $ throwE (IdpNotEnabledForCustomers idpId)
-
-requireInvite :: CrmRepository :> es => InviteId -> Crm es InviteDetails
+requireInvite :: CrmEffect es => InviteId -> Eff es InviteDetails
 requireInvite iid =
-  lift (findInvite iid) >>= maybe (throwE (InviteNotFound iid)) pure
+  findInvite iid >>= maybe (throwError (InviteNotFound iid)) pure
 
-ensureInviteActive :: InviteId -> InviteDetails -> Crm es ()
+ensureInviteActive :: CrmEffect es => InviteId -> InviteDetails -> Eff es ()
 ensureInviteActive iid inv =
-  unless (inv ^. #active) $ throwE (InviteNotActive iid)
+  unless (inv ^. #active) $ throwError (InviteNotActive iid)
 
-ensureInviteUnclaimed :: InviteId -> InviteDetails -> Crm es ()
+ensureInviteUnclaimed :: CrmEffect es => InviteId -> InviteDetails -> Eff es ()
 ensureInviteUnclaimed iid inv = case inv ^. #customerId of
-  Just _  -> throwE (InviteAlreadyClaimed iid)
+  Just _  -> throwError (InviteAlreadyClaimed iid)
   Nothing -> pure ()
 
-ensureCustomerExists :: CrmRepository :> es => CustomerId -> Crm es ()
+ensureCustomerExists :: CrmEffect es => CustomerId -> Eff es ()
 ensureCustomerExists cid = do
-  exists <- lift (customerExists cid)
-  unless exists $ throwE (CustomerNotFound cid)
+  exists <- customerExists cid
+  unless exists $ throwError (CustomerNotFound cid)

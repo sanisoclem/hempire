@@ -1,7 +1,7 @@
 cabal-version: 3.0
 name:          crm-interpreters
 version:       0.1.0.0
-synopsis:      PostgreSQL, HTTP, and mock interpreters for CRM effects
+synopsis:      PostgreSQL and HTTP interpreters for CRM effects
 license:       NONE
 
 common shared
@@ -18,15 +18,14 @@ library
   import:           shared
   hs-source-dirs:   src
   exposed-modules:
-    Crm.Interpreter.CustomerContext
-    Crm.Interpreter.Idp.Mock
+    Crm.Interpreter.Error
     Crm.Interpreter.Idp.Zitadel
     Crm.Interpreter.Repository.Postgres
-    Crm.Interpreter.Repository.Mock
   build-depends:
     , base                  ^>=4.20
     , crm-core
     , crm-public
+    , hempire-public
     , hempire-effects
     , hempire-interpreters
     , effectful-core        ^>=2.3
@@ -39,27 +38,5 @@ library
     , http-types            ^>=0.12
     , optics-core           ^>=0.4
     , postgresql-simple     ^>=0.7
-    , text
-    , time
-
-test-suite crm-interpreters-test
-  import:           shared
-  type:             exitcode-stdio-1.0
-  main-is:          Main.hs
-  other-modules:    Crm.Core.CustomerSpec
-  hs-source-dirs:   test
-  build-depends:
-    , base
-    , crm-core
-    , crm-interpreters
-    , crm-public
-    , hempire-effects
-    , hempire-interpreters
-    , effectful           ^>=2.3
-    , containers
-    , optics-core         ^>=0.4
-    , stm
-    , tasty               ^>=1.5
-    , tasty-hunit         ^>=0.10
     , text
     , time

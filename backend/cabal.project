@@ -3,11 +3,7 @@ packages:
   ./crm/crm-core
   ./crm/crm-interpreters
   ./crm/crm-api
-  ./crm/crm-worker
-  ./ledger/ledger-public
-  ./ledger/ledger-core
-  ./ledger/ledger-interpreters
-  ./ledger/ledger-api
-  ./ledger/ledger-worker
+  ./crm/crm-api-internal
+  ./hempire/hempire-public
   ./hempire/hempire-effects
   ./hempire/hempire-interpreters

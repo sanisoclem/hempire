@@ -24,13 +24,14 @@ services:
     environment:
       POSTGRES_USER: hempire
       POSTGRES_PASSWORD: hempire
-      POSTGRES_DB: hempire_bff
+      POSTGRES_DB: crm
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-dbs.sh:/docker-entrypoint-initdb.d/init-dbs.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hempire -d hempire_bff"]
+      test: ["CMD-SHELL", "pg_isready -U hempire -d crm"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -41,7 +42,7 @@ services:
     environment:
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
       ZITADEL_DATABASE_POSTGRES_PORT: 5432
-      ZITADEL_DATABASE_POSTGRES_DATABASE: hempire_bff
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
       ZITADEL_DATABASE_POSTGRES_USER_USERNAME: hempire
       ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: hempire
       ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
@@ -53,6 +54,28 @@ services:
       ZITADEL_EXTERNALDOMAIN: localhost
     ports:
       - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  zitadel-internal:
+    image: ghcr.io/zitadel/zitadel:v2.54.3
+    command: start-from-init --masterkey "MasterkeyNeedsToHave32Characters" --tlsMode disabled
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel_internal
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: hempire
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: hempire
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: hempire
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: hempire
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_EXTERNALPORT: 8082
+      ZITADEL_EXTERNALDOMAIN: localhost
+    ports:
+      - "8082:8080"
     depends_on:
       postgres:
         condition: service_healthy

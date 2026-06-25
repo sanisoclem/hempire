@@ -1,14 +1,15 @@
-module Hempire.Interpreter.Auth.Jwt
-  ( fetchJwks
-  , validateJwt
-  , extractIdentityId
-  , extractCustomerIdText
-  , hasZitadelRole
-  ) where
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
-import Control.Lens ((^.), at)
+module Hempire.Interpreter.Auth.Jwt (
+  fetchJwks,
+  validateJwt,
+  extractIdentityId,
+  extractCustomerIdText,
+  hasZitadelRole,
+) where
+
+import Control.Lens (at, (^.))
 import Control.Monad.Trans.Except (runExceptT)
-import Crypto.JOSE.JWK (JWKSet (..))
 import Crypto.JWT
 import Data.Aeson (eitherDecode)
 import Data.Aeson qualified as A
@@ -24,58 +25,54 @@ import Network.HTTP.Client (httpLbs, parseRequest, responseBody)
 import Network.HTTP.Client.TLS (newTlsManager)
 
 fetchJwks :: String -> IO JWKSet
-fetchJwks uri = do
-  mgr  <- newTlsManager
-  req  <- parseRequest uri
+fetchJwks jwksUri = do
+  mgr <- newTlsManager
+  req <- parseRequest jwksUri
   resp <- httpLbs req mgr
   either (ioError . userError) pure $
     eitherDecode (responseBody resp)
 
 validateJwt :: JWKSet -> Text -> Text -> Text -> IO (Either Text ClaimsSet)
 validateJwt jwks audience issuer token = do
-  let aud      = fromString (T.unpack audience) :: StringOrURI
-      iss      = fromString (T.unpack issuer)   :: StringOrURI
+  let aud = fromString (T.unpack audience) :: StringOrURI
+      iss = fromString (T.unpack issuer) :: StringOrURI
       settings = defaultJWTValidationSettings (== aud)
-      bs       = BSL.fromStrict (encodeUtf8 token)
+      bs = BSL.fromStrict (encodeUtf8 token)
   eJwt <- runExceptT @JWTError (decodeCompact bs)
   case eJwt of
-    Left err  -> pure (Left (T.pack (show err)))
+    Left err -> pure (Left (T.pack (show err)))
     Right jwt -> do
       result <- runExceptT @JWTError (verifyClaims settings jwks jwt)
       pure $ case result of
-        Left err    -> Left (T.pack (show err))
+        Left err -> Left (T.pack (show err))
         Right claims ->
           if claims ^. claimIss == Just iss
             then Right claims
             else Left "JWT issuer mismatch"
 
--- | Build an 'IdentityId' from the @iss@ and @sub@ claims of a validated JWT.
 extractIdentityId :: ClaimsSet -> Maybe IdentityId
 extractIdentityId claims = do
   issUri <- claims ^. claimIss
   subUri <- claims ^. claimSub
-  pure IdentityId
-    { identityIssuer = stringOrUriText issUri
-    , identitySub    = stringOrUriText subUri
-    }
+  pure
+    IdentityId
+      { identityIssuer = stringOrUriText issUri
+      , identitySub = stringOrUriText subUri
+      }
 
--- | Extract the @https://hempire.com/customer_id@ custom claim as raw text.
 extractCustomerIdText :: ClaimsSet -> Maybe Text
 extractCustomerIdText claims =
   claims ^. unregisteredClaims . at "https://hempire.com/customer_id" >>= \case
     A.String t -> Just t
-    _          -> Nothing
+    _ -> Nothing
 
--- | Check whether a Zitadel project role is present in the token.
--- Zitadel encodes roles as:
--- @"urn:zitadel:iam:org:project:roles": { "<roleName>": { "<orgId>": "<displayName>" } }@
 hasZitadelRole :: Text -> ClaimsSet -> Bool
 hasZitadelRole roleName claims =
   case claims ^. unregisteredClaims . at "urn:zitadel:iam:org:project:roles" of
     Just (A.Object obj) -> AK.fromText roleName `AKM.member` obj
-    _                   -> False
+    _ -> False
 
 stringOrUriText :: StringOrURI -> Text
 stringOrUriText sOrU = case A.toJSON sOrU of
   A.String t -> t
-  _          -> ""
+  _ -> ""

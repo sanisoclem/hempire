@@ -6,7 +6,6 @@ import Effectful
 import Effectful.TH (makeEffect)
 
 data Idp :: Effect where
-  -- idpType (e.g. "zitadel"), identityId (sub), customerId
   SetIdentityCustomer :: Text -> Text -> CustomerId -> Idp m ()
 
 type instance DispatchOf Idp = Dynamic

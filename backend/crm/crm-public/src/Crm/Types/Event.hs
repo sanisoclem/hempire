@@ -1,10 +1,11 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Crm.Types.Event
-  ( CustomerOnboarded (..)
-  , InviteCreated (..)
-  , InviteDeleted (..)
-  , CustomerStatusChanged (..)
-  ) where
+
+module Crm.Types.Event (
+  CustomerOnboarded (..),
+  InviteCreated (..),
+  InviteDeleted (..),
+  CustomerStatusChanged (..),
+) where
 
 import Crm.Types.Invite (InviteId, InviteSource)
 import Data.Aeson (FromJSON, ToJSON)
@@ -15,8 +16,8 @@ import Optics.TH (makeFieldLabelsNoPrefix)
 
 data CustomerOnboarded = CustomerOnboarded
   { customerId :: CustomerId
-  , inviteId   :: InviteId
-  , at         :: UTCTime
+  , inviteId :: InviteId
+  , at :: UTCTime
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
@@ -25,8 +26,8 @@ makeFieldLabelsNoPrefix ''CustomerOnboarded
 
 data InviteCreated = InviteCreated
   { inviteId :: InviteId
-  , source   :: InviteSource
-  , at       :: UTCTime
+  , source :: InviteSource
+  , at :: UTCTime
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
@@ -35,7 +36,7 @@ makeFieldLabelsNoPrefix ''InviteCreated
 
 data InviteDeleted = InviteDeleted
   { inviteId :: InviteId
-  , at       :: UTCTime
+  , at :: UTCTime
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
@@ -44,8 +45,8 @@ makeFieldLabelsNoPrefix ''InviteDeleted
 
 data CustomerStatusChanged = CustomerStatusChanged
   { customerId :: CustomerId
-  , active     :: Bool
-  , at         :: UTCTime
+  , active :: Bool
+  , at :: UTCTime
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)

@@ -1,12 +1,11 @@
--- | Platform-wide entity identifiers.
-module Hempire.Id
-  ( CustomerId (..)
-  ) where
+module Hempire.Id (
+  CustomerId (..),
+) where
 
-import Hempire.DomainId (DomainId (..), makeDomainId, parseId, showId)
+import Hempire.DomainId (makeDomainId, parseId, showId)
 import Web.HttpApiData (FromHttpApiData (..), ToHttpApiData (..))
 
 makeDomainId "CustomerId" "cust_"
 
 instance FromHttpApiData CustomerId where parseUrlPiece = parseId
-instance ToHttpApiData   CustomerId where toUrlPiece    = showId
+instance ToHttpApiData CustomerId where toUrlPiece = showId

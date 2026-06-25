@@ -18,6 +18,7 @@ library
   import:           shared
   hs-source-dirs:   src
   exposed-modules:
+    Crm.AppEnv
     Crm.Interpreter.Error
     Crm.Interpreter.Idp.Zitadel
     Crm.Interpreter.Repository.Postgres

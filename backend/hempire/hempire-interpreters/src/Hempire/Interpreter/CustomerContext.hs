@@ -1,7 +1,7 @@
-module Hempire.Interpreter.CustomerContext
-  ( runCustomerContext
-  , runInternalContext
-  ) where
+module Hempire.Interpreter.CustomerContext (
+  runCustomerContext,
+  runInternalContext,
+) where
 
 import Effectful
 import Effectful.Dispatch.Dynamic

@@ -31,14 +31,6 @@ sudo systemctl enable --now docker
 
 Use `ghcup` — do **not** use the `ghc` package from Arch (it won't match the required version).
 
-### Bun (for the web app)
-
-```bash
-curl -fsSL https://bun.sh/install | bash
-```
-
----
-
 ## Building the backend
 
 ```bash
@@ -49,9 +41,9 @@ cabal build all
 
 ### Running a service locally
 
-TODO: use telepresence
+TODO: zitadel setup
 
----
+TODO: use telepresence
 
 ## Building the web app
 

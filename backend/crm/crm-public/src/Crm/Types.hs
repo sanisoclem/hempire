@@ -1,10 +1,10 @@
-module Crm.Types
-  ( module Crm.Types.Invite
-  , module Crm.Types.Command
-  , module Crm.Types.Event
-  , module Crm.Types.Response
-  , CustomerId (..)
-  ) where
+module Crm.Types (
+  module Crm.Types.Invite,
+  module Crm.Types.Command,
+  module Crm.Types.Event,
+  module Crm.Types.Response,
+  CustomerId (..),
+) where
 
 import Crm.Types.Command
 import Crm.Types.Event

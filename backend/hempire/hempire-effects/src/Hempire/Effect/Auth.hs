@@ -1,25 +1,21 @@
-module Hempire.Effect.Auth
-  ( -- * Effect
-    Auth (..)
-    -- * Operations
-  , getCurrentPrincipal
-  , requirePermission
-    -- * Types
-  , Principal (..)
-  , Permission (..)
-  , AuthError (..)
-  ) where
+module Hempire.Effect.Auth (
+  Auth (..),
+  getCurrentPrincipal,
+  requirePermission,
+  Principal (..),
+  Permission (..),
+  AuthError (..),
+) where
 
 import Data.Set (Set)
 import Data.String (IsString)
 import Data.Text (Text)
 import Effectful
-import Effectful.Dispatch.Dynamic
 import Effectful.TH (makeEffect)
 import Hempire.Identity (IdentityId)
 
 data Principal = Principal
-  { principalIdentity    :: IdentityId
+  { principalIdentity :: IdentityId
   , principalPermissions :: Set Permission
   }
   deriving stock (Show, Eq)
@@ -35,7 +31,7 @@ data AuthError
 
 data Auth :: Effect where
   GetCurrentPrincipal :: Auth m (Maybe Principal)
-  RequirePermission   :: Permission -> Auth m (Either AuthError Principal)
+  RequirePermission :: Permission -> Auth m (Either AuthError Principal)
 
 type instance DispatchOf Auth = Dynamic
 

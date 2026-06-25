@@ -1,6 +1,6 @@
-module Hempire.Interpreter.Auth.Mock
-  ( runAuthMock
-  ) where
+module Hempire.Interpreter.Auth.Mock (
+  runAuthMock,
+) where
 
 import Data.Set qualified as Set
 import Effectful
@@ -12,7 +12,7 @@ runAuthMock mp = interpret $ \_env -> \case
   GetCurrentPrincipal -> pure mp
   RequirePermission perm -> pure $ case mp of
     Nothing -> Left Unauthenticated
-    Just p  ->
+    Just p ->
       if perm `Set.member` principalPermissions p
         then Right p
         else Left (Forbidden perm)

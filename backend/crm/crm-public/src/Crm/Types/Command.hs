@@ -1,11 +1,12 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Crm.Types.Command
-  ( OnboardCustomer (..)
-  , CreateInvite (..)
-  , DeleteCustomerInvite (..)
-  , DeactivateCustomer (..)
-  , CrmCommand (..)
-  ) where
+
+module Crm.Types.Command (
+  OnboardCustomer (..),
+  CreateInvite (..),
+  DeleteCustomerInvite (..),
+  DeactivateCustomer (..),
+  CrmCommand (..),
+) where
 
 import Crm.Types.Invite (InviteId, InviteSource)
 import Data.Aeson (FromJSON, ToJSON)
@@ -25,7 +26,7 @@ data OnboardCustomer = OnboardCustomer
 makeFieldLabelsNoPrefix ''OnboardCustomer
 
 data CreateInvite = CreateInvite
-  { source  :: InviteSource
+  { source :: InviteSource
   , comment :: Maybe Text
   }
   deriving stock (Show, Eq, Generic)
@@ -34,14 +35,14 @@ data CreateInvite = CreateInvite
 makeFieldLabelsNoPrefix ''CreateInvite
 
 newtype DeleteCustomerInvite = DeleteCustomerInvite
-  { inviteId :: InviteId }
+  {inviteId :: InviteId}
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
 
 makeFieldLabelsNoPrefix ''DeleteCustomerInvite
 
 newtype DeactivateCustomer = DeactivateCustomer
-  { customerId :: CustomerId }
+  {customerId :: CustomerId}
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON, ToJSON)
 

@@ -6,4 +6,4 @@ import Effectful.Dispatch.Dynamic
 
 runIdpMock :: Eff (Idp : es) a -> Eff es a
 runIdpMock = interpret $ \_env -> \case
-  SetIdentityCustomer _ _ _ -> pure ()
+  SetIdentityCustomer {} -> pure ()

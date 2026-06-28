@@ -1,10 +1,32 @@
-import { ensureSchema } from "$lib/server/db";
+import { redirect } from "@sveltejs/kit";
 import { startKafkaConsumer, startTimeoutScanner } from "$lib/server/kafka";
+import { verifyAndExtractSessionId, getSession, SESSION_COOKIE_NAME } from "$lib/server/session";
+import type { Handle } from "@sveltejs/kit";
 
-// Runs once on server startup — initialise DB schema, start Kafka consumer and timeout scanner.
-ensureSchema()
-  .then(() => startKafkaConsumer())
-  .then(() => startTimeoutScanner())
-  .catch((err) => console.error("BFF startup error:", err));
+startKafkaConsumer()
+	.then(() => startTimeoutScanner())
+	.catch((err) => console.error("BFF startup error:", err));
 
-export const handle = async ({ event, resolve }) => resolve(event);
+export const handle: Handle = async ({ event, resolve }) => {
+	if (event.url.pathname.startsWith("/login")) {
+		return resolve(event);
+	}
+
+	const cookieValue = event.cookies.get(SESSION_COOKIE_NAME);
+	if (cookieValue) {
+		const sessionId = verifyAndExtractSessionId(cookieValue);
+		if (sessionId) {
+			const session = getSession(sessionId);
+			if (session) {
+				event.locals.user = {
+					userId: session.userId,
+					customerId: session.customerId,
+				};
+				return resolve(event);
+			}
+		}
+	}
+
+	event.locals.user = null;
+	redirect(302, "/login");
+};

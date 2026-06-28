@@ -4,7 +4,7 @@ module Hempire.AppEnv (
 ) where
 
 import Data.ByteString (ByteString)
-import Data.Pool (Pool, defaultPoolConfig, newPool)
+import Data.Pool (Pool, defaultPoolConfig, newPool, setNumStripes)
 import Database.PostgreSQL.Simple (Connection, close, connectPostgreSQL)
 import System.Log.FastLogger (LoggerSet, defaultBufSize, newStdoutLoggerSet)
 
@@ -15,6 +15,6 @@ data AppEnv = AppEnv
 
 newAppEnv :: ByteString -> IO AppEnv
 newAppEnv connStr = do
-  pool <- newPool $ defaultPoolConfig (connectPostgreSQL connStr) close 30 10
+  pool <- newPool $ setNumStripes (Just 1) $ defaultPoolConfig (connectPostgreSQL connStr) close 30 10
   ls <- newStdoutLoggerSet defaultBufSize
   pure AppEnv {appPool = pool, appLoggerSet = ls}

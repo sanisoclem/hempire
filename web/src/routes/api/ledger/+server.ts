@@ -2,14 +2,15 @@ import { writeOptimistic } from "$lib/server/db";
 import { error, json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
-const LEDGER_API_URL = process.env.LEDGER_API_URL ?? "http://localhost:8081";
-
 export const POST: RequestHandler = async ({ request }) => {
+  const ledgerApiUrl = process.env.BFF_LEDGER_API_URL;
+  if (!ledgerApiUrl) error(503, "BFF_LEDGER_API_URL is not configured");
+
   const body = await request.json();
   const correlationId = crypto.randomUUID();
   const cmd = { ...body, correlationId };
 
-  const res = await fetch(`${LEDGER_API_URL}/entries`, {
+  const res = await fetch(`${ledgerApiUrl}/entries`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cmd),

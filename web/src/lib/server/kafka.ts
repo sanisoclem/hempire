@@ -4,7 +4,11 @@ import { broadcast } from "./sse";
 
 const kafka = new Kafka({
   clientId: "hempire-bff",
-  brokers: (process.env.KAFKA_BROKERS ?? "localhost:9092").split(","),
+  brokers: (() => {
+    const b = process.env.KAFKA_BROKERS;
+    if (!b) throw new Error("KAFKA_BROKERS is required");
+    return b.split(",");
+  })(),
 });
 
 const consumer = kafka.consumer({ groupId: "bff" });

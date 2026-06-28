@@ -80,5 +80,25 @@ services:
       postgres:
         condition: service_healthy
 
+  crm-migrate:
+    build:
+      context: ./backend/crm/migrations
+      dockerfile: Dockerfile
+    command: ["postgres://hempire:hempire@postgres:5432/crm?sslmode=disable", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  bff-migrate:
+    build:
+      context: ./web/migrations
+      dockerfile: Dockerfile
+    command: ["postgres://hempire:hempire@postgres:5432/hempire_bff?sslmode=disable", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
 volumes:
   postgres_data:

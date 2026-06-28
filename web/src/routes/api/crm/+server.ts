@@ -2,7 +2,8 @@ import { writeOptimistic } from "$lib/server/db";
 import { error, json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
-const CRM_API_URL = process.env.CRM_API_URL ?? "http://localhost:8080";
+const CRM_API_URL = process.env.BFF_CRM_API_URL;
+if (!CRM_API_URL) throw new Error("BFF_CRM_API_URL is required");
 
 export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json();

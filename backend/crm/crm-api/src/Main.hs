@@ -101,8 +101,9 @@ main = do
   let authHandler = makeCustomerAuthHandler jwtCfg keys
       ctx = authHandler :. EmptyContext
       app = serveWithContext (Proxy @API) ctx (server env zCfg)
-  putStrLn "crm-api listening on :8080"
-  Warp.run 8080 app
+  port <- read <$> requireEnv "CRM_API_PORT"
+  putStrLn $ "crm-api listening on :" <> show port
+  Warp.run port app
 
 loadZitadelConfig :: IO ZitadelConfig
 loadZitadelConfig = do

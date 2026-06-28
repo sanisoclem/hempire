@@ -31,6 +31,7 @@
     "vite": "^8.0.16"
   },
   "dependencies": {
+    "arctic": "^3.7.0",
     "kafkajs": "^2.2.4",
     "postgres": "^3.4.9"
   }

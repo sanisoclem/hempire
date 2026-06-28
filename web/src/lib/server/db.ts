@@ -1,22 +1,10 @@
 import postgres from "postgres";
 
-const sql = postgres(
-  process.env.DATABASE_URL ??
-    "postgres://hempire:hempire@localhost:5432/hempire_bff",
-);
-
-export async function ensureSchema(): Promise<void> {
-  await sql`
-		CREATE TABLE IF NOT EXISTS operations (
-			id            UUID        PRIMARY KEY,
-			type          TEXT        NOT NULL,
-			payload       JSONB       NOT NULL DEFAULT '{}',
-			status        TEXT        NOT NULL DEFAULT 'optimistic',
-			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			confirmed_at  TIMESTAMPTZ
-		)
-	`;
+if (!process.env.BFF_DATABASE_URL) {
+  throw new Error("BFF_DATABASE_URL is required");
 }
+
+const sql = postgres(process.env.BFF_DATABASE_URL);
 
 export async function writeOptimistic(
   id: string,

@@ -38,6 +38,7 @@ library
     , effectful         ^>=2.3
     , effectful-core    ^>=2.3
     , aeson             ^>=2.2
+    , base64-bytestring ^>=1.2
     , bytestring
     , containers
     , cryptohash-sha256 ^>=0.11

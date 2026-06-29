@@ -19,7 +19,8 @@ import Data.ByteString.Lazy qualified as BSL
 import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
+import Data.ByteString.Base64 qualified as B64
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Hempire.Identity (IdentityId (..))
 import Network.HTTP.Client (httpLbs, parseRequest, responseBody)
 import Network.HTTP.Client.TLS (newTlsManager)
@@ -62,8 +63,12 @@ extractIdentityId claims = do
 
 extractCustomerIdText :: ClaimsSet -> Maybe Text
 extractCustomerIdText claims =
-  claims ^. unregisteredClaims . at "https://hempire.com/customer_id" >>= \case
-    A.String t -> Just t
+  claims ^. unregisteredClaims . at "urn:zitadel:iam:user:metadata" >>= \case
+    A.Object obj -> case AKM.lookup (AK.fromText "customer_id") obj of
+      Just (A.String encoded) ->
+        either (const Nothing) (Just . decodeUtf8) $
+          B64.decode (encodeUtf8 encoded)
+      _ -> Nothing
     _ -> Nothing
 
 hasZitadelRole :: Text -> ClaimsSet -> Bool

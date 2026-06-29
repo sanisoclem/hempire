@@ -3,7 +3,7 @@ import { error } from "@sveltejs/kit";
 import type { Cookies } from "@sveltejs/kit";
 import { requireEnv } from "$lib/server/env";
 
-const SCOPES = ["openid", "profile", "email", "offline_access"];
+const SCOPES = ["openid", "profile", "email", "offline_access", "urn:zitadel:iam:user:metadata"];
 const STATE_COOKIE = "oauth_state";
 const VERIFIER_COOKIE = "pkce_verifier";
 const PKCE_COOKIE_OPTIONS = {
@@ -43,10 +43,14 @@ export interface TokenData {
 
 function parseClaims(idToken: string): UserClaims {
 	const raw = decodeIdToken(idToken) as Record<string, unknown>;
+	const metadata = raw["urn:zitadel:iam:user:metadata"] as Record<string, string> | undefined;
+	const encodedCustomerId = metadata?.["customer_id"];
 	return {
 		sub: raw.sub as string,
 		name: typeof raw.name === "string" ? raw.name : undefined,
-		customerId: typeof raw.customer_id === "string" ? raw.customer_id : undefined,
+		customerId: encodedCustomerId
+			? Buffer.from(encodedCustomerId, "base64").toString("utf-8")
+			: undefined,
 	};
 }
 

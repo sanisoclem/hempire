@@ -34,7 +34,7 @@ jobs:
           path: |
             ~/.cabal/store
             backend/dist-newstyle
-          key: ${{ runner.os }}-cabal-${{ hashFiles('backend/cabal.project.freeze') }}
+          key: ${{ runner.os }}-cabal-${{ hashFiles('backend/cabal.project.freeze', '.github/workflows/haskell.yml') }}
           restore-keys: ${{ runner.os }}-cabal-
 
       - name: Install system dependencies

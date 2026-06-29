@@ -43,6 +43,11 @@ cabal build all
 
 TODO: zitadel setup
 
+BFF
+
+- need refresh token
+- token settings must use JWT instead of bearer
+
 TODO: use telepresence
 
 ## Building the web app

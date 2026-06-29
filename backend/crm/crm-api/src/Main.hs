@@ -1,6 +1,10 @@
 module Main (main) where
 
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Exception (SomeException, try)
+import Control.Monad (forever)
 import Crm.AppEnv (newCrmAppEnv)
+import Data.Aeson (encode)
 import Crm.Auth
 import Crm.Core (CrmRepository, Idp)
 import Crm.Core.Domain (CrmDomainError)
@@ -9,7 +13,8 @@ import Crm.Interpreter.Error (mapCrmError)
 import Crm.Interpreter.Idp.Zitadel (ZitadelConfig (..), runIdpZitadel)
 import Crm.Interpreter.Repository.Postgres (runCrmRepositoryPostgres)
 import Crm.Types
-import Data.IORef (newIORef)
+import Crypto.JOSE.JWK (JWKSet)
+import Data.IORef (IORef, newIORef, writeIORef)
 import Data.Text qualified as T
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
@@ -37,7 +42,7 @@ type API =
   "onboarding"
     :> CrmAuth
     :> ReqBody '[JSON] OnboardRequest
-    :> Post '[JSON] (CrmResponse CustomerId)
+    :> Post '[JSON] CustomerId
 
 type App a =
   Eff
@@ -55,7 +60,7 @@ type App a =
      ]
     a
 
-appToHandler :: AppEnv -> ZitadelConfig -> CustomerAuth -> App (CrmResponse a) -> Handler (CrmResponse a)
+appToHandler :: AppEnv -> ZitadelConfig -> CustomerAuth -> App (CrmResponse a) -> Handler a
 appToHandler env zCfg auth action = do
   outcome <-
     liftIO $
@@ -73,10 +78,11 @@ appToHandler env zCfg auth action = do
   case outcome of
     Left dbErr -> liftIO (logDbError dbErr) >> throwError err500
     Right (Left (_, domainErr)) -> case mapCrmError domainErr of
-      Just e -> pure (Err e)
+      Just e -> throwError (toHttpError e)
       Nothing -> throwError err500
     Right (Right (Left (_, sErr))) -> throwError sErr
-    Right (Right (Right a)) -> pure a
+    Right (Right (Right (Ok a))) -> pure a
+    Right (Right (Right (Err e))) -> throwError (toHttpError e)
  where
   logDbError :: DatabaseError -> IO ()
   logDbError err = putStrLn ("[crm-api] database error: " <> show err)
@@ -89,7 +95,7 @@ server :: AppEnv -> ZitadelConfig -> Server API
 server env zCfg =
   \auth req -> run auth (onboardCustomerH auth req)
  where
-  run :: forall a. CustomerAuth -> App (CrmResponse a) -> Handler (CrmResponse a)
+  run :: forall a. CustomerAuth -> App (CrmResponse a) -> Handler a
   run = appToHandler env zCfg
 
 main :: IO ()
@@ -98,12 +104,30 @@ main = do
   jwtCfg <- loadCustomerJwtConfig
   zCfg <- loadZitadelConfig
   keys <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
+  _ <- forkIO (jwksRefreshLoop (cfgJwksUri jwtCfg) keys)
   let authHandler = makeCustomerAuthHandler jwtCfg keys
       ctx = authHandler :. EmptyContext
       app = serveWithContext (Proxy @API) ctx (server env zCfg)
   port <- read <$> requireEnv "CRM_API_PORT"
   putStrLn $ "crm-api listening on :" <> show port
   Warp.run port app
+
+toHttpError :: CrmError -> ServerError
+toHttpError e = base{errBody = encode e, errHeaders = [("content-type", "application/json")]}
+ where
+  base = case e of
+    NotFound _ -> err404
+    ValidationFailed _ -> err400
+    Conflict _ -> err400
+    InviteAlreadyClaimed _ -> err400
+
+jwksRefreshLoop :: String -> IORef JWKSet -> IO ()
+jwksRefreshLoop uri ref = forever $ do
+  threadDelay (5 * 60 * 1_000_000)
+  result <- try @SomeException (fetchJwks uri)
+  case result of
+    Left _ -> pure ()
+    Right keys -> writeIORef ref keys
 
 loadZitadelConfig :: IO ZitadelConfig
 loadZitadelConfig = do

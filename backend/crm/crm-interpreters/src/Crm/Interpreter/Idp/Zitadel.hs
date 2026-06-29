@@ -47,7 +47,7 @@ fetchServiceToken cfg mgr = do
           [ ("grant_type", "client_credentials")
           , ("client_id", encodeUtf8 (zCfgClientId cfg))
           , ("client_secret", encodeUtf8 (zCfgClientSecret cfg))
-          , ("scope", "openid")
+          , ("scope", "openid urn:zitadel:iam:org:project:id:zitadel:aud")
           ]
           req
   resp <- httpLbs req' mgr
@@ -59,14 +59,14 @@ setUserCustomerId :: ZitadelConfig -> Manager -> Text -> Text -> Text -> IO ()
 setUserCustomerId cfg mgr token identId cidText = do
   let url =
         T.unpack (zCfgApiUrl cfg)
-          <> "/v2/users/"
+          <> "/management/v1/users/"
           <> T.unpack identId
           <> "/metadata/customer_id"
       body = encode (object ["value" .= encodeMetaValue cidText])
   req <- parseRequest url
   let req' =
         req
-          { method = "PUT"
+          { method = "POST"
           , requestBody = RequestBodyLBS body
           , requestHeaders =
               [ ("Content-Type", "application/json")

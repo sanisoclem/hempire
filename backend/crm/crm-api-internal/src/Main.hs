@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Crm.AppEnv (newCrmAppEnv)
 import Crm.Auth
 import Crm.Core (CrmRepository)
 import Crm.Core.Domain (CrmDomainError)
@@ -10,7 +11,6 @@ import Crm.Types
 import Data.IORef (newIORef)
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
-import Crm.AppEnv (newCrmAppEnv)
 import Hempire.AppEnv (AppEnv (..))
 import Hempire.Effect.CustomerContext (CustomerContext)
 import Hempire.Effect.Database (Database, DatabaseError)

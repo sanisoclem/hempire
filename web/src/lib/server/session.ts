@@ -1,8 +1,11 @@
 import { randomBytes, createHmac, timingSafeEqual } from "crypto";
+import type { Cookies } from "@sveltejs/kit";
+import { requireEnv } from "$lib/server/env";
 
 export interface Session {
 	sessionId: string;
 	userId: string;
+	userName: string | null;
 	customerId: string | null;
 	accessToken: string;
 	refreshToken: string;
@@ -13,16 +16,14 @@ export interface Session {
 const sessions = new Map<string, Session>();
 
 function getSecretKey(): Buffer {
-	const hex = process.env.BFF_SESSION_SECRET;
-	if (!hex) throw new Error("BFF_SESSION_SECRET is required");
-	return Buffer.from(hex, "hex");
+	return Buffer.from(requireEnv("BFF_SESSION_SECRET"), "hex");
 }
 
 export const SESSION_COOKIE_NAME = "hempire_session";
 
-export const SESSION_COOKIE_OPTIONS = {
+const SESSION_COOKIE_OPTIONS = {
 	httpOnly: true,
-	secure: true,
+	secure: process.env.NODE_ENV === "production",
 	sameSite: "lax" as const,
 	path: "/",
 };
@@ -46,6 +47,20 @@ export function verifyAndExtractSessionId(cookieValue: string): string | null {
 	if (expected.length !== received.length) return null;
 	if (!timingSafeEqual(expected, received)) return null;
 	return sessionId;
+}
+
+export function setSessionCookie(cookies: Cookies, sessionId: string): void {
+	cookies.set(SESSION_COOKIE_NAME, signSessionId(sessionId), SESSION_COOKIE_OPTIONS);
+}
+
+export function getSessionFromCookies(cookies: Cookies): { session: Session; sessionId: string } | null {
+	const cookieValue = cookies.get(SESSION_COOKIE_NAME);
+	if (!cookieValue) return null;
+	const sessionId = verifyAndExtractSessionId(cookieValue);
+	if (!sessionId) return null;
+	const session = sessions.get(sessionId);
+	if (!session) return null;
+	return { session, sessionId };
 }
 
 export function createSession(session: Session): void {

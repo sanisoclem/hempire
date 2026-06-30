@@ -2,6 +2,7 @@ module Crm.Types.Response (
   CrmError (..),
   CrmResponse (..),
   OnboardingStatus (..),
+  OnboardResponse (..),
 ) where
 
 import Data.Aeson (
@@ -50,3 +51,11 @@ instance FromJSON OnboardingStatus where
 instance ToJSON OnboardingStatus where
   toJSON = genericToJSON onboardingStatusOptions
   toEncoding = genericToEncoding onboardingStatusOptions
+
+data OnboardResponse = OnboardResponse
+  { customerId :: CustomerId
+  , friendlyName :: Text
+  , identityId :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving anyclass (FromJSON, ToJSON)

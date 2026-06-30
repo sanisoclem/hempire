@@ -31,6 +31,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    command: postgres -c wal_level=logical
     environment:
       POSTGRES_USER: hempire
       POSTGRES_PASSWORD: hempire
@@ -86,6 +87,17 @@ services:
       ZITADEL_EXTERNALDOMAIN: localhost
     ports:
       - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  electric:
+    image: electricsql/electric:latest
+    environment:
+      DATABASE_URL: postgresql://hempire:hempire@postgres:5432/hempire_bff
+      LOGICAL_PUBLISHER_HOST: electric
+    ports:
+      - "3001:3000"
     depends_on:
       postgres:
         condition: service_healthy

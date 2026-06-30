@@ -3,6 +3,8 @@ import { requireAuthenticated } from "$lib/server/guards";
 import { onboard, CrmError } from "$lib/server/crm";
 import { refreshTokens } from "$lib/server/zitadel";
 import { updateSession } from "$lib/server/session";
+import { insertBffUserOptimistic } from "$lib/server/db";
+import { requireEnv } from "$lib/server/env";
 import { ROUTES } from "$lib/routes";
 import type { PageServerLoad, Actions } from "./$types";
 
@@ -22,12 +24,27 @@ export const actions: Actions = {
 			return fail(400, { error: "Invite code is required" });
 		}
 
+		let result;
 		try {
-			await onboard(accessToken, inviteId.trim());
+			result = await onboard(accessToken, inviteId.trim());
 		} catch (err) {
 			if (err instanceof CrmError) return fail(err.status, { error: err.clientMessage });
 			console.error("[onboarding] unexpected error:", err);
 			return fail(500, { error: "Internal error" });
+		}
+
+		try {
+			const expiryMinutes = parseInt(requireEnv("BFF_USER_EXPIRY_MINUTES"), 10);
+			const expiry = new Date(Date.now() + expiryMinutes * 60_000);
+			await insertBffUserOptimistic({
+				customerId: result.customerId,
+				friendlyName: result.friendlyName,
+				identityId: result.identityId,
+				requestId: inviteId.trim(),
+				expiry,
+			});
+		} catch (err) {
+			console.warn("[onboarding] BFF user write failed:", err);
 		}
 
 		try {

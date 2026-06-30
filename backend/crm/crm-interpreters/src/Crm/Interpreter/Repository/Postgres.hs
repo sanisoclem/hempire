@@ -51,6 +51,11 @@ runCrmRepositoryPostgres = interpret $ \_env -> \case
       "INSERT INTO customers (customer_id, created_on, updated_on, active) \
       \VALUES (?, ?, ?, true)"
       (showId cid, ts, ts)
+  CreateUserRecord cid fname iid ts ->
+    runQuery_
+      "INSERT INTO users (customer_id, friendly_name, identity_id, created_on) \
+      \VALUES (?, ?, ?, ?)"
+      (showId cid, fname, iid, ts)
   CustomerExists cid -> do
     rows <-
       runQuery

@@ -40,6 +40,7 @@
     "vite": "^8.0.16"
   },
   "dependencies": {
+    "@electric-sql/client": "^1.5.22",
     "arctic": "^3.7.0",
     "clsx": "^2.1.1",
     "kafkajs": "^2.2.4",

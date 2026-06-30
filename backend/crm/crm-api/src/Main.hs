@@ -4,7 +4,6 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception (SomeException, try)
 import Control.Monad (forever)
 import Crm.AppEnv (newCrmAppEnv)
-import Data.Aeson (encode)
 import Crm.Auth
 import Crm.Core (CrmRepository, Idp)
 import Crm.Core.Domain (CrmDomainError)
@@ -14,13 +13,14 @@ import Crm.Interpreter.Idp.Zitadel (ZitadelConfig (..), runIdpZitadel)
 import Crm.Interpreter.Repository.Postgres (runCrmRepositoryPostgres)
 import Crm.Types
 import Crypto.JOSE.JWK (JWKSet)
+import Data.Aeson (encode)
 import Data.IORef (IORef, newIORef, writeIORef)
 import Data.Text qualified as T
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
 import Hempire.AppEnv (AppEnv (..))
 import Hempire.Effect.CustomerContext (CustomerContext)
-import Hempire.Effect.Database (Database, DatabaseError)
+import Hempire.Effect.Database (Database, DatabaseError, withTransaction)
 import Hempire.Effect.Events (Events)
 import Hempire.Effect.IdGen (IdGen)
 import Hempire.Effect.Logging (Logging)
@@ -42,7 +42,7 @@ type API =
   "onboarding"
     :> CrmAuth
     :> ReqBody '[JSON] OnboardRequest
-    :> Post '[JSON] CustomerId
+    :> Post '[JSON] OnboardResponse
 
 type App a =
   Eff
@@ -74,7 +74,8 @@ appToHandler env zCfg auth action = do
                     runIdpZitadel zCfg $
                       runContextFor (cauthCustomerId auth) $
                         runError @CrmDomainError $
-                          runError @ServerError action
+                          runError @ServerError $
+                            withTransaction action
   case outcome of
     Left dbErr -> liftIO (logDbError dbErr) >> throwError err500
     Right (Left (_, domainErr)) -> case mapCrmError domainErr of
@@ -113,7 +114,7 @@ main = do
   Warp.run port app
 
 toHttpError :: CrmError -> ServerError
-toHttpError e = base{errBody = encode e, errHeaders = [("content-type", "application/json")]}
+toHttpError e = base {errBody = encode e, errHeaders = [("content-type", "application/json")]}
  where
   base = case e of
     NotFound _ -> err404

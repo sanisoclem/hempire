@@ -27,7 +27,7 @@ newtype OnboardRequest = OnboardRequest
 
 onboardCustomerH ::
   (App es) =>
-  CustomerAuth -> OnboardRequest -> Eff es (CrmResponse CustomerId)
+  CustomerAuth -> OnboardRequest -> Eff es (CrmResponse OnboardResponse)
 onboardCustomerH auth (OnboardRequest {inviteId}) = do
   mCid <- getCustomerId
   case mCid of

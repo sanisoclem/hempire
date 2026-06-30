@@ -1,3 +1,4 @@
+import '$lib/server/otel';
 import { redirect } from "@sveltejs/kit";
 import { getSessionFromCookies } from "$lib/server/session";
 import { startKafkaConsumer } from "$lib/server/kafka";

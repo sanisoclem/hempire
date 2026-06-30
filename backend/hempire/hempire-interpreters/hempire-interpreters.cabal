@@ -17,6 +17,7 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Hempire.AppEnv
+    Hempire.Interpreter.Telemetry
     Hempire.Interpreter.Auth.IORef
     Hempire.Interpreter.Auth.Jwt
     Hempire.Interpreter.Auth.Mock
@@ -56,3 +57,5 @@ library
     , time
     , uuid              ^>=1.3
     , hw-kafka-client
+    , hs-opentelemetry-api                         ^>=1.0
+    , hs-opentelemetry-instrumentation-http-client ^>=1.0

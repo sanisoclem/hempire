@@ -1,6 +1,6 @@
 module Main where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (forConcurrently_)
 import Control.Exception (throwIO)
 import Control.Monad (forM_, forever)
@@ -18,6 +18,17 @@ import Hempire.Effect.Messaging (Messaging, sendMessage)
 import Hempire.Interpreter.Database.Postgres (runDatabasePostgres)
 import Hempire.Interpreter.Messaging.Kafka (runMessagingKafka)
 import Kafka.Producer
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Middleware.Prometheus (metricsApp)
+import OpenTelemetry.Trace (getGlobalTracerProvider, withTracerProvider)
+import OpenTelemetry.Trace.Core (
+  SpanArguments (..),
+  SpanKind (..),
+  defaultSpanArguments,
+  inSpan,
+  makeTracer,
+  tracerOptions,
+ )
 import System.Environment (getEnv)
 import System.IO (hPutStrLn, stderr)
 
@@ -37,7 +48,7 @@ mkPool connStr =
       defaultPoolConfig (connectPostgreSQL connStr) close 30 5
 
 main :: IO ()
-main = do
+main = withTracerProvider $ \_ -> do
   urlsStr <- getEnv "BACKEND_OUTBOX_DATABASE_URLS"
   brokersStr <- getEnv "BACKEND_KAFKA_BROKERS"
   let connStrs = map (encodeUtf8 . T.strip) $ T.splitOn "," (T.pack urlsStr)
@@ -46,14 +57,19 @@ main = do
     newProducer (brokersList brokers <> sendTimeout (Timeout 10000))
       >>= either (throwIO . userError . show) pure
   pools <- mapM mkPool connStrs
+  _ <- forkIO $ Warp.run 9093 metricsApp
+  tp <- getGlobalTracerProvider
+  let tracer = makeTracer tp "outbox-sender" tracerOptions
+      spanArgs = defaultSpanArguments {kind = Internal}
   forConcurrently_ pools $ \pool ->
     forever $ do
       result <-
-        runEff $
-          runDatabasePostgres pool $
-            runMessagingKafka
-              producer
-              processOutbox
+        inSpan tracer "outbox.process" spanArgs $
+          runEff $
+            runDatabasePostgres pool $
+              runMessagingKafka
+                producer
+                processOutbox
       case result of
         Left err -> hPutStrLn stderr ("outbox error: " <> show err)
         Right () -> pure ()

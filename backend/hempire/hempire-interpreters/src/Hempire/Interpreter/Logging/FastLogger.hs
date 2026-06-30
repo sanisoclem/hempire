@@ -9,6 +9,7 @@ import Data.Text (Text)
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Hempire.Effect.Logging (LogField, Logging (..))
+import Hempire.Interpreter.Telemetry (traceCorrelationFields)
 import System.Log.FastLogger (LoggerSet, pushLogStr, toLogStr)
 
 runLoggingFastLogger :: (IOE :> es) => LoggerSet -> Eff (Logging : es) a -> Eff es a
@@ -20,7 +21,8 @@ runLoggingFastLogger ls = interpret $ \_env -> \case
 
 emit :: (IOE :> es) => LoggerSet -> Text -> Text -> [LogField] -> Eff es ()
 emit ls level msg fields = liftIO $ do
-  let entry :: Value = object (["level" .= level, "message" .= msg] ++ map mkField fields)
+  traceFields <- traceCorrelationFields
+  let entry :: Value = object (["level" .= level, "message" .= msg] ++ map mkField (fields ++ traceFields))
   pushLogStr ls (toLogStr (BL.toStrict (encode entry)) <> toLogStr ("\n" :: Text))
  where
   mkField (k, v) = fromText k .= v

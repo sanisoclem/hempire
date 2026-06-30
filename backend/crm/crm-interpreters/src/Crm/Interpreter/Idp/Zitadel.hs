@@ -15,8 +15,9 @@ import Effectful
 import Effectful.Dispatch.Dynamic
 import Hempire.DomainId (showId)
 import Network.HTTP.Client
-import Network.HTTP.Client.TLS (newTlsManager)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types (statusIsSuccessful)
+import OpenTelemetry.Instrumentation.HttpClient (httpClientInstrumentationConfig, newTracedManager)
 
 data ZitadelConfig = ZitadelConfig
   { zCfgApiUrl :: Text
@@ -34,14 +35,14 @@ runIdpZitadel :: (IOE :> es) => ZitadelConfig -> Eff (Idp : es) a -> Eff es a
 runIdpZitadel cfg = interpret $ \_env -> \case
   SetIdentityCustomer "zitadel" identId cid ->
     liftIO $ do
-      mgr <- newTlsManager
+      mgr <- newTracedManager httpClientInstrumentationConfig tlsManagerSettings
       token <- fetchServiceToken cfg mgr
       setUserCustomerId cfg mgr token identId (showId cid)
   SetIdentityCustomer other _ _ ->
     liftIO $ ioError (userError ("runIdpZitadel: unknown idp type: " <> T.unpack other))
   GetUserInfo "zitadel" identId ->
     liftIO $ do
-      mgr <- newTlsManager
+      mgr <- newTracedManager httpClientInstrumentationConfig tlsManagerSettings
       token <- fetchServiceToken cfg mgr
       fetchUserEmail cfg mgr token identId
   GetUserInfo other _ ->

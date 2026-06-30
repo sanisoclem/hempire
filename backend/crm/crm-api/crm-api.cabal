@@ -37,3 +37,10 @@ executable crm-api
     , warp                  ^>=3.4
     , errors                ^>=2.3
     , extra                 ^>=1.8
+    , hs-opentelemetry-sdk                   ^>=1.0
+    , hs-opentelemetry-api                   ^>=1.0
+    , hs-opentelemetry-exporter-otlp         ^>=1.0
+    , hs-opentelemetry-instrumentation-wai   ^>=1.0
+    , prometheus-client                      ^>=1.1
+    , wai-middleware-prometheus              ^>=1.0
+    , data-default                           ^>=0.7

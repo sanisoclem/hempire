@@ -36,4 +36,33 @@ export async function markTimedOut(): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
+export interface BffUserParams {
+	customerId: string;
+	friendlyName: string;
+	identityId: string;
+	requestId: string;
+}
+
+export async function insertBffUserOptimistic(params: BffUserParams & { expiry: Date }): Promise<void> {
+	await sql`
+		INSERT INTO users (customer_id, friendly_name, identity_id, request_id, expiry)
+		VALUES (${params.customerId}, ${params.friendlyName}, ${params.identityId},
+		        ${params.requestId}, ${params.expiry})
+		ON CONFLICT (customer_id) DO NOTHING
+	`;
+}
+
+export async function upsertBffUserConfirmed(params: BffUserParams): Promise<void> {
+	await sql`
+		INSERT INTO users (customer_id, friendly_name, identity_id, request_id, expiry)
+		VALUES (${params.customerId}, ${params.friendlyName}, ${params.identityId},
+		        ${params.requestId}, NULL)
+		ON CONFLICT (customer_id) DO UPDATE SET
+			friendly_name = EXCLUDED.friendly_name,
+			identity_id   = EXCLUDED.identity_id,
+			request_id    = EXCLUDED.request_id,
+			expiry        = NULL
+	`;
+}
+
 export default sql;

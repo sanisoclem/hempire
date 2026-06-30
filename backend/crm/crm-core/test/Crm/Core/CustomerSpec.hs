@@ -62,7 +62,7 @@ spec =
     "Crm.Core.Customer"
     [ testGroup
         "onboardCustomer"
-        [ testCase "success: returns CustomerId and publishes event" $ do
+        [ testCase "success: returns OnboardResponse and publishes event" $ do
             eventLog <- newTVarIO []
             logLog <- newTVarIO []
             let mock =
@@ -76,7 +76,13 @@ spec =
                 eventLog
                 logLog
                 (onboardCustomer OnboardCustomer {identity = testIdentity, inviteId = testInviteId})
-            result @?= Right expectedCid
+            result
+              @?= Right
+                OnboardResponse
+                  { customerId = expectedCid
+                  , friendlyName = "test@example.com"
+                  , identityId = testIssuer <> "|" <> "user-001"
+                  }
             events <- readTVarIO eventLog
             length events @?= 1
         , testCase "idempotent: succeeds if customer already exists, no new event" $ do
@@ -94,7 +100,13 @@ spec =
                 eventLog
                 logLog
                 (onboardCustomer OnboardCustomer {identity = testIdentity, inviteId = testInviteId})
-            result @?= Right expectedCid
+            result
+              @?= Right
+                OnboardResponse
+                  { customerId = expectedCid
+                  , friendlyName = "test@example.com"
+                  , identityId = testIssuer <> "|" <> "user-001"
+                  }
             events <- readTVarIO eventLog
             events @?= []
         , testCase "rejects missing IdP" $ do

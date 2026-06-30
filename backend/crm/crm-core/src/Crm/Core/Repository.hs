@@ -6,6 +6,7 @@ module Crm.Core.Repository (
   claimInvite,
   deleteInviteRecord,
   createCustomerRecord,
+  createUserRecord,
   customerExists,
   setCustomerActive,
   getIdpConfig,
@@ -28,6 +29,7 @@ data CrmRepository :: Effect where
   ClaimInvite :: InviteId -> CustomerId -> CrmRepository m ()
   DeleteInviteRecord :: InviteId -> CrmRepository m ()
   CreateCustomerRecord :: CustomerId -> UTCTime -> CrmRepository m ()
+  CreateUserRecord :: CustomerId -> Text -> Text -> UTCTime -> CrmRepository m ()
   CustomerExists :: CustomerId -> CrmRepository m Bool
   SetCustomerActive :: CustomerId -> Bool -> UTCTime -> CrmRepository m ()
   GetIdpConfig :: Text -> CrmRepository m (Maybe IdpConfig)

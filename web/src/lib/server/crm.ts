@@ -25,7 +25,7 @@ function clientMessage(status: number): string {
 	return messages[status] ?? "Request failed";
 }
 
-async function call(method: string, path: string, accessToken: string, body?: unknown): Promise<void> {
+async function request(method: string, path: string, accessToken: string, body?: unknown): Promise<Response> {
 	let res: Response;
 	try {
 		res = await fetch(`${getCrmApiUrl()}${path}`, {
@@ -54,8 +54,25 @@ async function call(method: string, path: string, accessToken: string, body?: un
 			throw new CrmError(res.status, clientMessage(res.status));
 		}
 	}
+
+	return res;
 }
 
-export async function onboard(accessToken: string, inviteId: string): Promise<void> {
-	await call("POST", "/onboarding", accessToken, { inviteId });
+async function call(method: string, path: string, accessToken: string, body?: unknown): Promise<void> {
+	await request(method, path, accessToken, body);
+}
+
+async function callJson<T>(method: string, path: string, accessToken: string, body?: unknown): Promise<T> {
+	const res = await request(method, path, accessToken, body);
+	return res.json() as Promise<T>;
+}
+
+export interface OnboardResult {
+	customerId: string;
+	friendlyName: string;
+	identityId: string;
+}
+
+export async function onboard(accessToken: string, inviteId: string): Promise<OnboardResult> {
+	return callJson<OnboardResult>("POST", "/onboarding", accessToken, { inviteId });
 }

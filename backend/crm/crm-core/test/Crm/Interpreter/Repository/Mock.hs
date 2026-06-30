@@ -43,6 +43,7 @@ runCrmRepositoryMock mock = interpret $ \_env -> \case
   ClaimInvite _ _ -> pure ()
   DeleteInviteRecord _ -> pure ()
   CreateCustomerRecord _ _ -> pure ()
+  CreateUserRecord {} -> pure ()
   CustomerExists cid -> pure $ Set.member cid (customers mock)
   SetCustomerActive {} -> pure ()
   GetIdpConfig issuer -> pure $ Map.lookup issuer (idpConfigs mock)

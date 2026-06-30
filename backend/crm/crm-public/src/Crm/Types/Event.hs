@@ -9,6 +9,7 @@ module Crm.Types.Event (
 
 import Crm.Types.Invite (InviteId, InviteSource)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Text (Text)
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 import Hempire.Id (CustomerId (..))
@@ -17,6 +18,8 @@ import Optics.TH (makeFieldLabelsNoPrefix)
 data CustomerOnboarded = CustomerOnboarded
   { customerId :: CustomerId
   , inviteId :: InviteId
+  , friendlyName :: Text
+  , identityId :: Text
   , at :: UTCTime
   }
   deriving stock (Show, Eq, Generic)

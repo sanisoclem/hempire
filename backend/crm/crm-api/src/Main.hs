@@ -17,6 +17,8 @@ import Data.Aeson (encode)
 import Data.Default (def)
 import Data.IORef (IORef, newIORef, writeIORef)
 import Data.Text qualified as T
+import Data.UUID qualified as UUID
+import Data.UUID.V4 (nextRandom)
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
 import Hempire.AppEnv (AppEnv (..))
@@ -32,13 +34,17 @@ import Hempire.Interpreter.Database.Postgres (runDatabasePostgres)
 import Hempire.Interpreter.Events.Outbox (runEventsOutbox)
 import Hempire.Interpreter.IdGen.Real (runIdGenReal)
 import Hempire.Interpreter.Logging.FastLogger (runLoggingFastLogger)
+import Hempire.Interpreter.Telemetry (withRequestId)
 import Hempire.Interpreter.Time.System (runTimeSystem)
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Middleware.Prometheus (metricsApp, prometheus)
+import OpenTelemetry.Context (lookupSpan)
+import OpenTelemetry.Context.ThreadLocal (getContext)
 import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware)
-import OpenTelemetry.Trace (withTracerProvider)
+import OpenTelemetry.SDK (withOpenTelemetry)
+import OpenTelemetry.Trace.Core (addAttribute)
 import Servant
-import System.Environment (lookupEnv)
+import System.Environment (lookupEnv, setEnv)
 
 type CrmAuth = AuthProtect "crm-customer"
 
@@ -104,20 +110,22 @@ server env zCfg =
   run = appToHandler env zCfg
 
 main :: IO ()
-main = withTracerProvider $ \_ -> do
-  env <- newCrmAppEnv
-  jwtCfg <- loadCustomerJwtConfig
-  zCfg <- loadZitadelConfig
-  keys <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
-  _ <- forkIO (jwksRefreshLoop (cfgJwksUri jwtCfg) keys)
-  _ <- forkIO $ Warp.run 9091 metricsApp
-  otelMW <- newOpenTelemetryWaiMiddleware
-  port <- read <$> requireEnv "CRM_API_PORT"
-  let authHandler = makeCustomerAuthHandler jwtCfg keys
-      ctx = authHandler :. EmptyContext
-      app = otelMW $ prometheus def $ serveWithContext (Proxy @API) ctx (server env zCfg)
-  putStrLn $ "crm-api listening on :" <> show port
-  Warp.run port app
+main = do
+  setEnv "OTEL_SERVICE_NAME" "crm-api"
+  withOpenTelemetry $ \_ -> do
+    env <- newCrmAppEnv
+    jwtCfg <- loadCustomerJwtConfig
+    zCfg <- loadZitadelConfig
+    keys <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
+    _ <- forkIO (jwksRefreshLoop (cfgJwksUri jwtCfg) keys)
+    _ <- forkIO $ Warp.run 10001 metricsApp
+    otelMW <- newOpenTelemetryWaiMiddleware
+    port <- read <$> requireEnv "CRM_API_PORT"
+    let authHandler = makeCustomerAuthHandler jwtCfg keys
+        ctx = authHandler :. EmptyContext
+        app = otelMW $ requestIdMiddleware $ prometheus def $ serveWithContext (Proxy @API) ctx (server env zCfg)
+    putStrLn $ "crm-api listening on :" <> show port
+    Warp.run port app
 
 toHttpError :: CrmError -> ServerError
 toHttpError e = base {errBody = encode e, errHeaders = [("content-type", "application/json")]}
@@ -127,6 +135,13 @@ toHttpError e = base {errBody = encode e, errHeaders = [("content-type", "applic
     ValidationFailed _ -> err400
     Conflict _ -> err400
     InviteAlreadyClaimed _ -> err400
+
+requestIdMiddleware :: Application -> Application
+requestIdMiddleware inner req k = do
+  rid <- UUID.toText <$> nextRandom
+  ctx <- getContext
+  mapM_ (\sp -> addAttribute sp "request_id" rid) (lookupSpan ctx)
+  withRequestId rid $ inner req k
 
 jwksRefreshLoop :: String -> IORef JWKSet -> IO ()
 jwksRefreshLoop uri ref = forever $ do

@@ -1,6 +1,6 @@
 import { error } from "@sveltejs/kit";
 import { requireAuthenticated } from "$lib/server/guards";
-import { requireEnv } from "$lib/server/env";
+import { config } from "$lib/server/config";
 import type { RequestHandler } from "./$types";
 
 const ALLOWED_TABLES = ["users"] as const;
@@ -13,7 +13,7 @@ export const GET: RequestHandler = async ({ cookies, url, params }) => {
   const table = params.table;
   if (!(ALLOWED_TABLES as readonly string[]).includes(table)) throw error(404, "Unknown table");
 
-  const electricUrl = requireEnv("BFF_ELECTRIC_URL");
+  const electricUrl = config.electric.url;
   const target = new URL(`${electricUrl}/v1/shape`);
 
   for (const [k, v] of url.searchParams) target.searchParams.set(k, v);

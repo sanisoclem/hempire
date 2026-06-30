@@ -1,5 +1,4 @@
 import { browser } from "$app/environment";
-import { BFF_PUBLIC_ORIGIN } from "$env/static/public";
 import { electricCollectionOptions } from "@tanstack/electric-db-collection";
 import { localOnlyCollectionOptions } from "@tanstack/db";
 import { createCollection } from "@tanstack/svelte-db";
@@ -17,7 +16,7 @@ export const usersCollection = browser
   ? createCollection(
       electricCollectionOptions<UserRow>({
         id: "users",
-        shapeOptions: { url: `${BFF_PUBLIC_ORIGIN}/api/shapes/users` },
+        shapeOptions: { url: `${location.origin}/api/shapes/users` },
         getKey: (row) => row.customer_id,
       }),
     )

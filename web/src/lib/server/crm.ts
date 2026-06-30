@@ -1,8 +1,4 @@
-import { requireEnv } from "$lib/server/env";
-
-function getCrmApiUrl() {
-	return requireEnv("BFF_CRM_API_URL");
-}
+import { config } from "$lib/server/config";
 
 export class CrmError extends Error {
 	constructor(
@@ -28,7 +24,7 @@ function clientMessage(status: number): string {
 async function request(method: string, path: string, accessToken: string, body?: unknown): Promise<Response> {
 	let res: Response;
 	try {
-		res = await fetch(`${getCrmApiUrl()}${path}`, {
+		res = await fetch(`${config.crm.apiUrl}${path}`, {
 			method,
 			headers: {
 				"Content-Type": "application/json",

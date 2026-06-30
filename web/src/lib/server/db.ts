@@ -1,11 +1,8 @@
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import postgres from 'postgres';
+import { config } from '$lib/server/config';
 
-if (!process.env.BFF_DATABASE_URL) {
-	throw new Error('BFF_DATABASE_URL is required');
-}
-
-const sql = postgres(process.env.BFF_DATABASE_URL);
+const sql = postgres(config.database.url);
 
 const tracer = trace.getTracer('hempire-bff');
 

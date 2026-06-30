@@ -1,4 +1,6 @@
 import '$lib/server/otel';
+import { telemetryHandle } from '$lib/server/otel';
+import { sequence } from '@sveltejs/kit/hooks';
 import { redirect } from "@sveltejs/kit";
 import { getSessionFromCookies } from "$lib/server/session";
 import { startKafkaConsumer } from "$lib/server/kafka";
@@ -7,7 +9,7 @@ import type { Handle } from "@sveltejs/kit";
 
 startKafkaConsumer().catch((err) => console.error("[kafka] consumer failed to start:", err));
 
-export const handle: Handle = async ({ event, resolve }) => {
+const authHandle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname.startsWith(ROUTES.login)) return resolve(event);
 
   const result = getSessionFromCookies(event.cookies);
@@ -21,3 +23,5 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   return resolve(event);
 };
+
+export const handle = sequence(telemetryHandle, authHandle);

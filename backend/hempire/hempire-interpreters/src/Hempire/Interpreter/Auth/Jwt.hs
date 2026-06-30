@@ -15,11 +15,11 @@ import Data.Aeson (eitherDecode)
 import Data.Aeson qualified as A
 import Data.Aeson.Key qualified as AK
 import Data.Aeson.KeyMap qualified as AKM
+import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Lazy qualified as BSL
 import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.ByteString.Base64 qualified as B64
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Hempire.Identity (IdentityId (..))
 import Network.HTTP.Client (httpLbs, parseRequest, responseBody)

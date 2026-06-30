@@ -4,7 +4,7 @@ import { onboard, CrmError } from "$lib/server/crm";
 import { refreshTokens } from "$lib/server/zitadel";
 import { updateSession } from "$lib/server/session";
 import { insertBffUserOptimistic } from "$lib/server/db";
-import { requireEnv } from "$lib/server/env";
+import { config } from "$lib/server/config";
 import { ROUTES } from "$lib/routes";
 import type { PageServerLoad, Actions } from "./$types";
 
@@ -34,7 +34,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			const expiryMinutes = parseInt(requireEnv("BFF_USER_EXPIRY_MINUTES"), 10);
+			const expiryMinutes = config.user.expiryMinutes;
 			const expiry = new Date(Date.now() + expiryMinutes * 60_000);
 			await insertBffUserOptimistic({
 				customerId: result.customerId,

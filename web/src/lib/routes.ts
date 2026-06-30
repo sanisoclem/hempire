@@ -3,5 +3,8 @@ export const ROUTES = {
   login: "/login",
   onboarding: "/onboarding",
   crm: "/crm",
-  ledger: "/ledger",
+  workspace: {
+    new: "/w/new",
+    detail: (id: string) => `/w/${id}`,
+  },
 } as const;

@@ -1,6 +1,7 @@
 import { redirect, error } from "@sveltejs/kit";
 import { exchangeCode } from "$lib/server/zitadel";
 import { createSession, generateSessionId, setSessionCookie } from "$lib/server/session";
+import { ROUTES } from "$lib/routes";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
@@ -25,5 +26,5 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	});
 	setSessionCookie(cookies, sessionId);
 
-	redirect(302, tokenData.claims.customerId ? "/" : "/onboarding");
+	redirect(302, tokenData.claims.customerId ? ROUTES.home : ROUTES.onboarding);
 };

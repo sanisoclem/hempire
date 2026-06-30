@@ -3,10 +3,12 @@ import { requireAuthenticated } from "$lib/server/guards";
 import { onboard, CrmError } from "$lib/server/crm";
 import { refreshTokens } from "$lib/server/zitadel";
 import { updateSession } from "$lib/server/session";
+import { ROUTES } from "$lib/routes";
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ url, cookies }) => {
-	const { userName } = requireAuthenticated(cookies);
+	const { userName, customerId } = requireAuthenticated(cookies);
+	if (customerId) redirect(302, ROUTES.home);
 	return { inviteId: url.searchParams.get("invite") ?? null, userName };
 };
 
@@ -41,6 +43,6 @@ export const actions: Actions = {
 			console.warn("[onboarding] token refresh failed, session will not reflect customer_id:", err);
 		}
 
-		redirect(302, "/");
+		redirect(302, ROUTES.home);
 	},
 };

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { ROUTES } from '$lib/routes';
 
 	let { children }: { children: Snippet } = $props();
 </script>
 
 <nav>
-	<a href="/">Dashboard</a>
-	<a href="/crm">CRM</a>
-	<a href="/ledger">Ledger</a>
+	<a href={ROUTES.home}>Dashboard</a>
+	<a href={ROUTES.crm}>CRM</a>
+	<a href={ROUTES.ledger}>Ledger</a>
 </nav>
 
 {@render children()}

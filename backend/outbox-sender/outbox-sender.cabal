@@ -1,0 +1,25 @@
+cabal-version: 3.0
+name:          outbox-sender
+version:       0.1.0.0
+build-type:    Simple
+
+executable outbox-sender
+  main-is:          Main.hs
+  hs-source-dirs:   src
+  ghc-options:      -Wall -threaded -rtsopts
+  default-language: GHC2024
+  default-extensions:
+    OverloadedStrings
+    LambdaCase
+    OverloadedRecordDot
+  build-depends:
+    , base
+    , hempire-effects
+    , hempire-interpreters
+    , effectful-core    ^>=2.3
+    , postgresql-simple ^>=0.7
+    , resource-pool     ^>=0.4
+    , hw-kafka-client
+    , text
+    , bytestring
+    , async

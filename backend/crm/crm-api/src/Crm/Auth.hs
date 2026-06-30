@@ -44,9 +44,9 @@ data JwtConfig = JwtConfig
 
 loadCustomerJwtConfig :: IO JwtConfig
 loadCustomerJwtConfig = do
-  jwksUri <- requireEnv "AUTH_JWKS_URI"
-  issuer <- requireEnv "AUTH_ISSUER"
-  audience <- requireEnv "AUTH_AUDIENCE"
+  jwksUri <- requireEnv "CRM_AUTH_JWKS_URI"
+  issuer <- requireEnv "CRM_AUTH_ISSUER"
+  audience <- requireEnv "CRM_AUTH_AUDIENCE"
   pure
     JwtConfig
       { cfgJwksUri = jwksUri

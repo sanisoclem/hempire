@@ -1,30 +1,25 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
-  import { ROUTES } from '$lib/routes';
-  import type { LayoutData } from './$types';
+	import type { Snippet } from "svelte";
+	import { page } from "$app/state";
+	import AppSidebar from "$lib/components/app-sidebar.svelte";
+	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+	import type { LayoutData } from "./$types";
 
-  let { children, data }: { children: Snippet; data: LayoutData } = $props();
+	let { children, data }: { children: Snippet; data: LayoutData } = $props();
+
+	const activeWorkspaceId = $derived(page.params.workspaceId as string | undefined);
 </script>
 
-<div class="flex min-h-screen">
-  <aside class="w-56 border-r border-gray-200 flex flex-col gap-6 p-4">
-    <span class="text-sm font-semibold text-gray-700">{data.user.userName ?? 'User'}</span>
-
-    <nav class="flex flex-col gap-1">
-      {#each data.workspaces as ws (ws.id)}
-        <a
-          href={ROUTES.workspace.detail(ws.id)}
-          class="px-2 py-1.5 rounded text-sm text-gray-700 hover:bg-gray-100"
-        >{ws.name}</a>
-      {/each}
-      <a
-        href={ROUTES.workspace.new}
-        class="mt-2 px-2 py-1.5 rounded text-xs text-gray-400 hover:bg-gray-100"
-      >+ New workspace</a>
-    </nav>
-  </aside>
-
-  <main class="flex-1 p-8">
-    {@render children()}
-  </main>
-</div>
+<Sidebar.Provider>
+	<AppSidebar workspaces={data.workspaces} {activeWorkspaceId} user={data.user} />
+	<Sidebar.Inset>
+		<header
+			class="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border px-4"
+		>
+			<Sidebar.Trigger class="-ms-1" />
+		</header>
+		<div class="flex flex-1 flex-col p-6">
+			{@render children()}
+		</div>
+	</Sidebar.Inset>
+</Sidebar.Provider>

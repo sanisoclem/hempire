@@ -49,8 +49,5 @@
     "kafkajs": "^2.2.4",
     "postgres": "^3.4.9",
     "tailwind-merge": "^3.6.0"
-  },
-  "patchedDependencies": {
-    "kafkajs@2.2.4": "patches/kafkajs@2.2.4.patch"
   }
 }

@@ -4,6 +4,7 @@ module Hempire.Effect.Database (
   runQuery_,
   execute,
   withTransaction,
+  withTransactionRollback,
   DatabaseError (..),
 ) where
 
@@ -27,6 +28,7 @@ data Database :: Effect where
   RunQuery_ :: (ToRow q) => Query -> q -> Database m ()
   Execute :: (ToRow q) => Query -> q -> Database m Int64
   WithTransaction :: m a -> Database m a
+  WithTransactionRollback :: m (Either e a) -> Database m (Either e a)
 
 type instance DispatchOf Database = Dynamic
 

@@ -44,6 +44,53 @@ jobs:
       - run: cabal build all
       - run: cabal test all --test-show-details=direct
 
+  lint:
+    name: HLint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: haskell-actions/hlint-setup@v2
+        with:
+          version: "3.8"
+
+      - uses: haskell-actions/hlint-run@v2
+        with:
+          path: backend
+          fail-on: warning
+
+  stan:
+    name: Stan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.10.3'
+          cabal-version: '3.14.2'
+
+      - name: Cache Cabal store (stan)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cabal/store
+          key: ${{ runner.os }}-stan-${{ hashFiles('backend/cabal.project.freeze') }}
+          restore-keys: ${{ runner.os }}-stan-
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y librdkafka-dev
+
+      - run: cabal update
+      - name: Install stan
+        run: cabal install stan --overwrite-policy=always
+      - name: Run stan
+        run: stan
+
   docker:
     name: Docker — ${{ matrix.service }}
     needs: build-and-test

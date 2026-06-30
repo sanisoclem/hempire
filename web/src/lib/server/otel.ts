@@ -8,6 +8,7 @@ import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { SpanKind, SpanStatusCode, context, propagation, trace } from '@opentelemetry/api';
 import { isRedirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit';
+import { stopKafkaConsumer } from './kafka';
 
 const sdk = new NodeSDK({
 	resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: 'hempire-bff' }),
@@ -25,8 +26,14 @@ const sdk = new NodeSDK({
 
 sdk.start();
 
-process.on('SIGTERM', () => sdk.shutdown().finally(() => process.exit(0)));
-process.on('SIGINT', () => sdk.shutdown().finally(() => process.exit(0)));
+const shutdown = async () => {
+	await stopKafkaConsumer();
+	await sdk.shutdown();
+	process.exit(0);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 const tracer = trace.getTracer('hempire-bff');
 
@@ -47,7 +54,8 @@ export const telemetryHandle: Handle = async ({ event, resolve }) => {
 					return response;
 				} catch (err) {
 					if (isRedirect(err)) {
-						span.end();
+						span.setAttribute('http.response.status_code', err.status);
+						span.setStatus({ code: SpanStatusCode.OK });
 						throw err;
 					}
 					span.recordException(err as Error);

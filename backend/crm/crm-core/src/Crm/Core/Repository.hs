@@ -13,15 +13,20 @@ module Crm.Core.Repository (
 ) where
 
 import Crm.Types (CustomerId, InviteDetails, InviteId, InviteSource)
+import Crm.Types.IdpType (IdpType)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Effectful
 import Effectful.TH (makeEffect)
+import GHC.Generics (Generic)
 
 data IdpConfig = IdpConfig
   { idpEnabled :: Bool
-  , idpType :: Text
+  , idpType :: IdpType
   }
+  deriving stock (Show, Eq, Generic)
+  deriving anyclass (FromJSON, ToJSON)
 
 data CrmRepository :: Effect where
   FindInvite :: InviteId -> CrmRepository m (Maybe InviteDetails)

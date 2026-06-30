@@ -57,6 +57,7 @@
     "clsx": "^2.1.1",
     "kafkajs": "^2.2.4",
     "postgres": "^3.4.9",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "zod": "^3.25.0"
   }
 }

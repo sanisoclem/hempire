@@ -7,6 +7,7 @@ import Crm.Core.Repository (IdpConfig (..))
 import Crm.Interpreter.Idp.Mock (runIdpMock)
 import Crm.Interpreter.Repository.Mock
 import Crm.Types hiding (InviteAlreadyClaimed)
+import Crm.Types.IdpType (IdpType (..))
 import Data.Text (Text)
 import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
 import Effectful (runEff)
@@ -37,7 +38,7 @@ testIdentity :: IdentityId
 testIdentity = IdentityId {identityIssuer = testIssuer, identitySub = "user-001"}
 
 testIdpConfig :: IdpConfig
-testIdpConfig = IdpConfig {idpEnabled = True, idpType = "zitadel"}
+testIdpConfig = IdpConfig {idpEnabled = True, idpType = Zitadel}
 
 activeInvite :: InviteDetails
 activeInvite =

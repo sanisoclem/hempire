@@ -91,6 +91,12 @@ services:
       postgres:
         condition: service_healthy
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   electric:
     image: electricsql/electric:latest
     environment:

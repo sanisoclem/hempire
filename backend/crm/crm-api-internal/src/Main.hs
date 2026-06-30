@@ -1,6 +1,8 @@
 module Main (main) where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Exception (SomeException, try)
+import Control.Monad (forever)
 import Crm.AppEnv (newCrmAppEnv)
 import Crm.Auth
 import Crm.Core (CrmRepository)
@@ -10,19 +12,23 @@ import Crm.Interpreter.Error (mapCrmError)
 import Crm.Interpreter.Repository.Postgres (runCrmRepositoryPostgres)
 import Crm.Types
 import Data.Default (def)
-import Data.IORef (newIORef)
+import Data.IORef (IORef, newIORef, writeIORef)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 (nextRandom)
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
 import Hempire.AppEnv (AppEnv (..))
+import Hempire.Effect.Cache (Cache)
 import Hempire.Effect.CustomerContext (CustomerContext)
-import Hempire.Effect.Database (Database, DatabaseError)
+import Hempire.Effect.Database (Database, withTransaction)
 import Hempire.Effect.Events (Events)
+import Hempire.Effect.HempireError (HempireInternalError)
 import Hempire.Effect.IdGen (IdGen)
 import Hempire.Effect.Logging (Logging)
 import Hempire.Effect.Time (Time)
+import Hempire.Env (requireEnv)
 import Hempire.Interpreter.Auth.Jwt (fetchJwks)
+import Hempire.Interpreter.Cache.Redis (runCacheRedis)
 import Hempire.Interpreter.CustomerContext (runInternalContext)
 import Hempire.Interpreter.Database.Postgres (runDatabasePostgres)
 import Hempire.Interpreter.Events.Outbox (runEventsOutbox)
@@ -39,6 +45,8 @@ import OpenTelemetry.SDK (withOpenTelemetry)
 import OpenTelemetry.Trace.Core (addAttribute)
 import Servant
 import System.Environment (setEnv)
+import System.Log.FastLogger (LoggerSet, pushLogStr, toLogStr)
+import Crypto.JOSE.JWK (JWKSet)
 
 type InternalAuth' = AuthProtect "crm-internal"
 
@@ -67,9 +75,11 @@ type App a =
          , Error CrmDomainError
          , CustomerContext
          , CrmRepository
+         , Cache
          , IdGen
          , Events
          , Database
+         , Error HempireInternalError
          , Time
          , Logging
          , IOE
@@ -83,23 +93,27 @@ appToHandler env _auth action = do
             runEff $
                 runLoggingFastLogger (appLoggerSet env) $
                     runTimeSystem $
-                        runDatabasePostgres (appPool env) $
-                            runEventsOutbox $
-                                runIdGenReal $
-                                    runCrmRepositoryPostgres $
-                                        runInternalContext $
-                                            runError @CrmDomainError $
-                                                runError @ServerError action
+                        runError @HempireInternalError $
+                            runDatabasePostgres (appPool env) $
+                                runEventsOutbox $
+                                    runIdGenReal $
+                                        runCacheRedis (appRedis env) $
+                                            runCrmRepositoryPostgres $
+                                                runInternalContext $
+                                                    withTransaction $
+                                                        runError @CrmDomainError $
+                                                            runError @ServerError action
     case outcome of
-        Left dbErr -> liftIO (logDbError dbErr) >> throwError err500
+        Left (_, internalErr) -> logInternalError internalErr >> throwError err500
         Right (Left (_, domainErr)) -> case mapCrmError domainErr of
             Just e -> pure (Err e)
             Nothing -> throwError err500
         Right (Right (Left (_, sErr))) -> throwError sErr
         Right (Right (Right a)) -> pure a
   where
-    logDbError :: DatabaseError -> IO ()
-    logDbError err = putStrLn ("[crm-api-internal] database error: " <> show err)
+    logInternalError :: HempireInternalError -> IO ()
+    logInternalError err =
+        pushLogStr (appLoggerSet env) (toLogStr ("[crm-api-internal] internal error: " <> show err <> "\n"))
 
 requestIdMiddleware :: Application -> Application
 requestIdMiddleware inner req k = do
@@ -118,6 +132,15 @@ server env =
     run :: forall a. InternalAuth -> App (CrmResponse a) -> Handler (CrmResponse a)
     run = appToHandler env
 
+jwksRefreshLoop :: String -> LoggerSet -> IORef JWKSet -> IO ()
+jwksRefreshLoop uri ls ref = forever $ do
+    threadDelay (5 * 60 * 1_000_000)
+    result <- try @SomeException (fetchJwks uri)
+    case result of
+        Left err ->
+            pushLogStr ls (toLogStr ("[crm-api-internal] JWKS refresh failed: " <> show err <> "\n"))
+        Right keys -> writeIORef ref keys
+
 main :: IO ()
 main = do
     setEnv "OTEL_SERVICE_NAME" "crm-api-internal"
@@ -125,10 +148,12 @@ main = do
         env <- newCrmAppEnv
         jwtCfg <- loadInternalJwtConfig
         keys <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
+        _ <- forkIO (jwksRefreshLoop (cfgJwksUri jwtCfg) (appLoggerSet env) keys)
         _ <- forkIO $ Warp.run 10002 metricsApp
         otelMW <- newOpenTelemetryWaiMiddleware
+        port <- read <$> requireEnv "CRM_API_INTERNAL_PORT"
         let authHandler = makeInternalAuthHandler jwtCfg keys
             ctx = authHandler :. EmptyContext
             app = otelMW $ requestIdMiddleware $ prometheus def $ serveWithContext (Proxy @API) ctx (server env)
-        putStrLn "crm-api-internal listening on :8090"
-        Warp.run 8090 app
+        putStrLn $ "crm-api-internal listening on :" <> show port
+        Warp.run port app

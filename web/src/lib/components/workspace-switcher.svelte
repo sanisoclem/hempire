@@ -4,7 +4,7 @@
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import { ROUTES } from "$lib/routes";
-	import type { Ledger } from "$lib/types";
+	import type { Workspace } from "$lib/types";
 	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
 	import LayersIcon from "@lucide/svelte/icons/layers";
 	import PlusIcon from "@lucide/svelte/icons/plus";
@@ -13,7 +13,7 @@
 		workspaces,
 		activeWorkspaceId,
 	}: {
-		workspaces: Ledger[];
+		workspaces: Workspace[];
 		activeWorkspaceId: string | undefined;
 	} = $props();
 

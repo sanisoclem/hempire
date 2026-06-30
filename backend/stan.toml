@@ -1,0 +1,4 @@
+# Stan static analysis config
+# Add suppression IDs here as needed:
+#   [[ignore]]
+#   id = "STAN-0001"

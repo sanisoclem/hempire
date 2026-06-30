@@ -1,10 +1,12 @@
 module Crm.Interpreter.Idp.Zitadel (
   ZitadelConfig (..),
   runIdpZitadel,
+  loadZitadelManager,
 ) where
 
 import Control.Monad (unless)
 import Crm.Core.Idp (Idp (..), IdpUserInfo (..))
+import Crm.Types.IdpType (IdpType (..))
 import Data.Aeson (FromJSON (..), eitherDecode, encode, object, withObject, (.:), (.=))
 import Data.Aeson.Types (parseEither)
 import Data.ByteString.Base64 qualified as B64
@@ -23,6 +25,7 @@ data ZitadelConfig = ZitadelConfig
   { zCfgApiUrl :: Text
   , zCfgClientId :: Text
   , zCfgClientSecret :: Text
+  , zCfgManager :: Manager
   }
 
 newtype TokenResponse = TokenResponse Text
@@ -33,20 +36,14 @@ instance FromJSON TokenResponse where
 
 runIdpZitadel :: (IOE :> es) => ZitadelConfig -> Eff (Idp : es) a -> Eff es a
 runIdpZitadel cfg = interpret $ \_env -> \case
-  SetIdentityCustomer "zitadel" identId cid ->
+  SetIdentityCustomer Zitadel identId cid ->
     liftIO $ do
-      mgr <- newTracedManager httpClientInstrumentationConfig tlsManagerSettings
-      token <- fetchServiceToken cfg mgr
-      setUserCustomerId cfg mgr token identId (showId cid)
-  SetIdentityCustomer other _ _ ->
-    liftIO $ ioError (userError ("runIdpZitadel: unknown idp type: " <> T.unpack other))
-  GetUserInfo "zitadel" identId ->
+      token <- fetchServiceToken cfg (zCfgManager cfg)
+      setUserCustomerId cfg (zCfgManager cfg) token identId (showId cid)
+  GetUserInfo Zitadel identId ->
     liftIO $ do
-      mgr <- newTracedManager httpClientInstrumentationConfig tlsManagerSettings
-      token <- fetchServiceToken cfg mgr
-      fetchUserEmail cfg mgr token identId
-  GetUserInfo other _ ->
-    liftIO $ ioError (userError ("runIdpZitadel: unknown idp type: " <> T.unpack other))
+      token <- fetchServiceToken cfg (zCfgManager cfg)
+      fetchUserEmail cfg (zCfgManager cfg) token identId
 
 fetchServiceToken :: ZitadelConfig -> Manager -> IO Text
 fetchServiceToken cfg mgr = do
@@ -114,3 +111,6 @@ fetchUserEmail cfg mgr token identId = do
 
 encodeMetaValue :: Text -> Text
 encodeMetaValue t = decodeUtf8 (B64.encode (encodeUtf8 t))
+
+loadZitadelManager :: IO Manager
+loadZitadelManager = newTracedManager httpClientInstrumentationConfig tlsManagerSettings

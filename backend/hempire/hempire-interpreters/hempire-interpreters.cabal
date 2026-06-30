@@ -21,6 +21,8 @@ library
     Hempire.Interpreter.Auth.IORef
     Hempire.Interpreter.Auth.Jwt
     Hempire.Interpreter.Auth.Mock
+    Hempire.Interpreter.Cache.Mock
+    Hempire.Interpreter.Cache.Redis
     Hempire.Interpreter.CustomerContext
     Hempire.Interpreter.Database.Postgres
     Hempire.Interpreter.Database.Mock
@@ -45,6 +47,7 @@ library
     , containers
     , cryptohash-sha256 ^>=0.11
     , fast-logger       ^>=3.2
+    , hedis             >= 0.14
     , http-client       ^>=0.7
     , http-client-tls   ^>=0.3
     , jose              ^>=0.11

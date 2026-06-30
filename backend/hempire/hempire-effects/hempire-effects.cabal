@@ -19,9 +19,11 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Hempire.Effect.Auth
+    Hempire.Effect.Cache
     Hempire.Effect.CustomerContext
     Hempire.Effect.Database
     Hempire.Effect.Events
+    Hempire.Effect.HempireError
     Hempire.Effect.IdGen
     Hempire.Effect.Messaging
     Hempire.Effect.Logging

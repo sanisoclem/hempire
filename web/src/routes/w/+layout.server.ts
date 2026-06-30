@@ -1,9 +1,11 @@
+import { error } from "@sveltejs/kit";
 import { requireOnboarded } from "$lib/server/guards";
-import { getLedgers } from "$lib/server/ledger";
+import { listWorkspaces } from "$lib/server/finance";
 import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = async ({ cookies }) => {
-  requireOnboarded(cookies);
-  const workspaces = getLedgers();
-  return { workspaces };
+	const { customerId } = requireOnboarded(cookies);
+	const result = await listWorkspaces(customerId);
+	if (!result.success) throw error(500, result.error);
+	return { workspaces: result.value };
 };

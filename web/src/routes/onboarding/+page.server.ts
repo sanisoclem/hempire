@@ -26,6 +26,7 @@ export const actions: Actions = {
 
 		let result;
 		try {
+			// Rate limiting enforced at the k8s ingress level (not here)
 			result = await onboard(accessToken, inviteId.trim());
 		} catch (err) {
 			if (err instanceof CrmError) return fail(err.status, { error: err.clientMessage });
@@ -47,17 +48,24 @@ export const actions: Actions = {
 			console.warn("[onboarding] BFF user write failed:", err);
 		}
 
+		let newTokens;
 		try {
-			const newTokens = await refreshTokens(refreshToken);
-			updateSession(sessionId, {
-				accessToken: newTokens.accessToken,
-				refreshToken: newTokens.refreshToken,
-				idToken: newTokens.idToken,
-				tokenExpiry: newTokens.tokenExpiry,
-				customerId: newTokens.claims.customerId ?? null,
-			});
+			newTokens = await refreshTokens(refreshToken);
 		} catch (err) {
-			console.warn("[onboarding] token refresh failed, session will not reflect customer_id:", err);
+			console.error("[onboarding] token refresh failed after successful onboarding:", err);
+			return fail(500, { error: "Could not activate session. Please try logging in again." });
+		}
+
+		updateSession(sessionId, {
+			accessToken: newTokens.accessToken,
+			refreshToken: newTokens.refreshToken,
+			idToken: newTokens.idToken,
+			tokenExpiry: newTokens.tokenExpiry,
+			customerId: newTokens.claims.customerId ?? null,
+		});
+
+		if (!newTokens.claims.customerId) {
+			return fail(500, { error: "Session activation failed. Please contact support." });
 		}
 
 		redirect(302, ROUTES.home);

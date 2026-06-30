@@ -24,26 +24,6 @@ export async function withDbSpan<T>(operation: string, fn: () => Promise<T>): Pr
 	);
 }
 
-export async function writeOptimistic(id: string, type: string, payload: unknown): Promise<void> {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	await withDbSpan('db.insert.operations', () =>
-		sql`INSERT INTO operations (id, type, payload) VALUES (${id}, ${type}, ${sql.json(payload as any)})`
-	);
-}
-
-export async function confirmOperation(correlationId: string): Promise<void> {
-	await withDbSpan('db.update.operations.commit', () =>
-		sql`UPDATE operations SET status = 'committed', confirmed_at = NOW() WHERE id = ${correlationId} AND status = 'optimistic'`
-	);
-}
-
-export async function markTimedOut(): Promise<string[]> {
-	const rows = await withDbSpan('db.update.operations.timeout', () =>
-		sql<{ id: string }[]>`UPDATE operations SET status = 'timed_out' WHERE status = 'optimistic' AND created_at < NOW() - INTERVAL '30 seconds' RETURNING id`
-	);
-	return rows.map((r) => r.id);
-}
-
 export interface BffUserParams {
 	customerId: string;
 	friendlyName: string;

@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
-
 module Hempire.Interpreter.Auth.Jwt (
   fetchJwks,
   validateJwt,
@@ -8,7 +6,7 @@ module Hempire.Interpreter.Auth.Jwt (
   hasZitadelRole,
 ) where
 
-import Control.Lens (at, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Trans.Except (runExceptT)
 import Crypto.JWT
 import Data.Aeson (eitherDecode)
@@ -64,18 +62,24 @@ extractIdentityId claims = do
 
 extractCustomerIdText :: ClaimsSet -> Maybe Text
 extractCustomerIdText claims =
-  claims ^. unregisteredClaims . at "urn:zitadel:iam:user:metadata" >>= \case
-    A.Object obj -> case AKM.lookup (AK.fromText "customer_id") obj of
-      Just (A.String encoded) ->
-        either (const Nothing) (Just . decodeUtf8) $
-          B64.decode (encodeUtf8 encoded)
-      _ -> Nothing
+  case A.toJSON claims of
+    A.Object obj ->
+      case AKM.lookup (AK.fromText "urn:zitadel:iam:user:metadata") obj of
+        Just (A.Object metaObj) ->
+          case AKM.lookup (AK.fromText "customer_id") metaObj of
+            Just (A.String encoded) ->
+              either (const Nothing) (Just . decodeUtf8) $ B64.decode (encodeUtf8 encoded)
+            _ -> Nothing
+        _ -> Nothing
     _ -> Nothing
 
 hasZitadelRole :: Text -> ClaimsSet -> Bool
 hasZitadelRole roleName claims =
-  case claims ^. unregisteredClaims . at "urn:zitadel:iam:org:project:roles" of
-    Just (A.Object obj) -> AK.fromText roleName `AKM.member` obj
+  case A.toJSON claims of
+    A.Object obj ->
+      case AKM.lookup (AK.fromText "urn:zitadel:iam:org:project:roles") obj of
+        Just (A.Object rolesObj) -> AK.fromText roleName `AKM.member` rolesObj
+        _ -> False
     _ -> False
 
 stringOrUriText :: StringOrURI -> Text

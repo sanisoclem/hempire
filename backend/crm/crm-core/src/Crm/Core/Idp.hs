@@ -1,6 +1,7 @@
 module Crm.Core.Idp (Idp (..), IdpUserInfo (..), setIdentityCustomer, getUserInfo) where
 
 import Crm.Types (CustomerId)
+import Crm.Types.IdpType (IdpType)
 import Data.Text (Text)
 import Effectful
 import Effectful.TH (makeEffect)
@@ -10,8 +11,8 @@ newtype IdpUserInfo = IdpUserInfo
   }
 
 data Idp :: Effect where
-  SetIdentityCustomer :: Text -> Text -> CustomerId -> Idp m ()
-  GetUserInfo :: Text -> Text -> Idp m IdpUserInfo
+  SetIdentityCustomer :: IdpType -> Text -> CustomerId -> Idp m ()
+  GetUserInfo :: IdpType -> Text -> Idp m IdpUserInfo
 
 type instance DispatchOf Idp = Dynamic
 

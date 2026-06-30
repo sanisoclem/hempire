@@ -18,6 +18,7 @@ library
   hs-source-dirs:   src
   exposed-modules:
     Hempire.DomainId
+    Hempire.Env
     Hempire.Id
     Hempire.Identity
   build-depends:

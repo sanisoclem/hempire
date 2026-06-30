@@ -16,10 +16,11 @@ import Data.Text (Text)
 import Effectful
 import Effectful.Error.Static (Error, throwError)
 import Hempire.Effect.CustomerContext (CustomerContext)
-import Hempire.Effect.Events (Events, publishEvent)
+import Hempire.Effect.Events (Events, TopicName, publishEvent)
 import Hempire.Effect.IdGen (IdGen, deriveId, newId)
 import Hempire.Effect.Logging (Logging)
 import Hempire.Effect.Time (Time, getUtcTimestampNow)
+import Hempire.Identity (formatIdentityId)
 import Optics.Core
 
 type CrmEffect es =
@@ -32,6 +33,9 @@ type CrmEffect es =
   , Error CrmDomainError :> es
   )
 
+crmEventsTopic :: TopicName
+crmEventsTopic = "crm.events"
+
 onboardCustomer ::
   (CrmEffect es, Idp :> es) =>
   OnboardCustomer ->
@@ -40,7 +44,7 @@ onboardCustomer cmd = do
   let issuer = cmd ^. #identity % #identityIssuer
       identId = cmd ^. #identity % #identitySub
       iid = cmd ^. #inviteId
-      identityId = issuer <> "|" <> identId
+      identityId = formatIdentityId (cmd ^. #identity)
   cfg <- ensureIdpExists issuer
   ensureIdpEnabled issuer cfg
   invite <- requireInvite iid
@@ -50,23 +54,18 @@ onboardCustomer cmd = do
   let friendlyName = idpUserEmail userInfo
 
   alreadyExists <- customerExists cid
-  -- this block is atomic (ambient transaction), so if the user already exists, then
-  -- we know all of this was already performed
-  -- we need to do this since setting the customerIdP is not atomic
-  -- and could fail
   unless alreadyExists $ do
     now <- getUtcTimestampNow
     createCustomerRecord cid now
     createUserRecord cid friendlyName identityId now
     claimInvite iid cid
-    publishEvent
-      "crm.events"
-      CustomerOnboarded {customerId = cid, inviteId = iid, friendlyName, identityId, at = now}
+    publishEvent crmEventsTopic $
+      CrmCustomerOnboarded
+        CustomerOnboarded{customerId = cid, inviteId = iid, friendlyName, identityId, at = now}
 
-  -- set the customerId in the IdP
   setIdentityCustomer (idpType cfg) identId cid
 
-  pure OnboardResponse {customerId = cid, friendlyName, identityId}
+  pure OnboardResponse{customerId = cid, friendlyName, identityId}
 
 createInvite ::
   (CrmEffect es) =>
@@ -76,9 +75,8 @@ createInvite cmd = do
   now <- getUtcTimestampNow
   iid :: InviteId <- newId
   createInviteRecord iid (cmd ^. #source) now (cmd ^. #comment)
-  publishEvent
-    "crm.events"
-    InviteCreated {inviteId = iid, source = cmd ^. #source, at = now}
+  publishEvent crmEventsTopic $
+    CrmInviteCreated InviteCreated{inviteId = iid, source = cmd ^. #source, at = now}
   pure iid
 
 deleteCustomerInvite ::
@@ -90,7 +88,8 @@ deleteCustomerInvite iid = do
   ensureInviteUnclaimed iid invite
   now <- getUtcTimestampNow
   deleteInviteRecord iid
-  publishEvent "crm.events" InviteDeleted {inviteId = iid, at = now}
+  publishEvent crmEventsTopic $
+    CrmInviteDeleted InviteDeleted{inviteId = iid, at = now}
 
 getCustomerInvite ::
   (CrmEffect es) =>
@@ -107,9 +106,8 @@ deactivateCustomer cid = do
   ensureCustomerExists cid
   now <- getUtcTimestampNow
   setCustomerActive cid False now
-  publishEvent
-    "crm.events"
-    CustomerStatusChanged {customerId = cid, active = False, at = now}
+  publishEvent crmEventsTopic $
+    CrmCustomerStatusChanged CustomerStatusChanged{customerId = cid, active = False, at = now}
 
 ensureIdpExists :: (CrmEffect es) => Text -> Eff es IdpConfig
 ensureIdpExists issuer =

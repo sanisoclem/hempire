@@ -9,7 +9,7 @@ import Crm.Core (CrmRepository, Idp)
 import Crm.Core.Domain (CrmDomainError)
 import Crm.Handlers
 import Crm.Interpreter.Error (mapCrmError)
-import Crm.Interpreter.Idp.Zitadel (ZitadelConfig (..), runIdpZitadel)
+import Crm.Interpreter.Idp.Zitadel (ZitadelConfig (..), loadZitadelManager, runIdpZitadel)
 import Crm.Interpreter.Repository.Postgres (runCrmRepositoryPostgres)
 import Crm.Types
 import Crypto.JOSE.JWK (JWKSet)
@@ -22,13 +22,17 @@ import Data.UUID.V4 (nextRandom)
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
 import Hempire.AppEnv (AppEnv (..))
+import Hempire.Effect.Cache (Cache)
 import Hempire.Effect.CustomerContext (CustomerContext)
-import Hempire.Effect.Database (Database, DatabaseError, withTransaction)
+import Hempire.Effect.Database (Database, withTransaction)
 import Hempire.Effect.Events (Events)
+import Hempire.Effect.HempireError (HempireInternalError)
 import Hempire.Effect.IdGen (IdGen)
 import Hempire.Effect.Logging (Logging)
 import Hempire.Effect.Time (Time)
+import Hempire.Env (requireEnv)
 import Hempire.Interpreter.Auth.Jwt (fetchJwks)
+import Hempire.Interpreter.Cache.Redis (runCacheRedis)
 import Hempire.Interpreter.CustomerContext (runCustomerContext, runInternalContext)
 import Hempire.Interpreter.Database.Postgres (runDatabasePostgres)
 import Hempire.Interpreter.Events.Outbox (runEventsOutbox)
@@ -44,7 +48,8 @@ import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware)
 import OpenTelemetry.SDK (withOpenTelemetry)
 import OpenTelemetry.Trace.Core (addAttribute)
 import Servant
-import System.Environment (lookupEnv, setEnv)
+import System.Environment (setEnv)
+import System.Log.FastLogger (LoggerSet, pushLogStr, toLogStr)
 
 type CrmAuth = AuthProtect "crm-customer"
 
@@ -61,9 +66,11 @@ type App a =
      , CustomerContext
      , Idp
      , CrmRepository
+     , Cache
      , IdGen
      , Events
      , Database
+     , Error HempireInternalError
      , Time
      , Logging
      , IOE
@@ -77,17 +84,19 @@ appToHandler env zCfg auth action = do
       runEff $
         runLoggingFastLogger (appLoggerSet env) $
           runTimeSystem $
-            runDatabasePostgres (appPool env) $
-              runEventsOutbox $
-                runIdGenReal $
-                  runCrmRepositoryPostgres $
-                    runIdpZitadel zCfg $
-                      runContextFor (cauthCustomerId auth) $
-                        withTransaction $
-                          runError @CrmDomainError $
-                            runError @ServerError action
+            runError @HempireInternalError $
+              runDatabasePostgres (appPool env) $
+                runEventsOutbox $
+                  runIdGenReal $
+                    runCacheRedis (appRedis env) $
+                      runCrmRepositoryPostgres $
+                        runIdpZitadel zCfg $
+                          runContextFor (cauthCustomerId auth) $
+                            withTransaction $
+                              runError @CrmDomainError $
+                                runError @ServerError action
   case outcome of
-    Left dbErr -> liftIO (logDbError dbErr) >> throwError err500
+    Left (_, internalErr) -> logInternalError internalErr >> throwError err500
     Right (Left (_, domainErr)) -> case mapCrmError domainErr of
       Just e -> throwError (toHttpError e)
       Nothing -> throwError err500
@@ -95,8 +104,9 @@ appToHandler env zCfg auth action = do
     Right (Right (Right (Ok a))) -> pure a
     Right (Right (Right (Err e))) -> throwError (toHttpError e)
  where
-  logDbError :: DatabaseError -> IO ()
-  logDbError err = putStrLn ("[crm-api] database error: " <> show err)
+  logInternalError :: HempireInternalError -> IO ()
+  logInternalError err =
+    pushLogStr (appLoggerSet env) (toLogStr ("[crm-api] internal error: " <> show err <> "\n"))
 
 runContextFor :: Maybe CustomerId -> Eff (CustomerContext : es) a -> Eff es a
 runContextFor (Just cid) = runCustomerContext cid
@@ -117,7 +127,7 @@ main = do
     jwtCfg <- loadCustomerJwtConfig
     zCfg <- loadZitadelConfig
     keys <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
-    _ <- forkIO (jwksRefreshLoop (cfgJwksUri jwtCfg) keys)
+    _ <- forkIO (jwksRefreshLoop (cfgJwksUri jwtCfg) (appLoggerSet env) keys)
     _ <- forkIO $ Warp.run 10001 metricsApp
     otelMW <- newOpenTelemetryWaiMiddleware
     port <- read <$> requireEnv "CRM_API_PORT"
@@ -143,12 +153,13 @@ requestIdMiddleware inner req k = do
   mapM_ (\sp -> addAttribute sp "request_id" rid) (lookupSpan ctx)
   withRequestId rid $ inner req k
 
-jwksRefreshLoop :: String -> IORef JWKSet -> IO ()
-jwksRefreshLoop uri ref = forever $ do
+jwksRefreshLoop :: String -> LoggerSet -> IORef JWKSet -> IO ()
+jwksRefreshLoop uri ls ref = forever $ do
   threadDelay (5 * 60 * 1_000_000)
   result <- try @SomeException (fetchJwks uri)
   case result of
-    Left _ -> pure ()
+    Left err ->
+      pushLogStr ls (toLogStr ("[crm-api] JWKS refresh failed: " <> show err <> "\n"))
     Right keys -> writeIORef ref keys
 
 loadZitadelConfig :: IO ZitadelConfig
@@ -156,12 +167,11 @@ loadZitadelConfig = do
   apiUrl <- requireEnv "CRM_ZITADEL_API_URL"
   cidStr <- requireEnv "CRM_ZITADEL_CLIENT_ID"
   csecret <- requireEnv "CRM_ZITADEL_CLIENT_SECRET"
+  mgr <- loadZitadelManager
   pure
     ZitadelConfig
       { zCfgApiUrl = T.pack apiUrl
       , zCfgClientId = T.pack cidStr
       , zCfgClientSecret = T.pack csecret
+      , zCfgManager = mgr
       }
-
-requireEnv :: String -> IO String
-requireEnv k = lookupEnv k >>= maybe (fail ("required env var not set: " <> k)) pure

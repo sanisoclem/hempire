@@ -1,13 +1,14 @@
-import { error } from "@sveltejs/kit";
+import { error, redirect } from "@sveltejs/kit";
 import { requireOnboarded } from "$lib/server/guards";
-import { getLedgerById } from "$lib/server/ledger";
+import { getWorkspaceById } from "$lib/server/finance";
+import { ROUTES } from "$lib/routes";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ cookies, params }) => {
-	requireOnboarded(cookies);
+	const { customerId } = requireOnboarded(cookies);
+	const result = await getWorkspaceById(params.workspaceId, customerId);
+	if (!result.success) throw error(500, result.error);
+	if (!result.value) throw error(404, "Workspace not found");
 
-	const workspace = getLedgerById(params.workspaceId);
-	if (!workspace) error(404, "Workspace not found");
-
-	return { workspace };
+	redirect(302, ROUTES.workspace.sync(params.workspaceId));
 };

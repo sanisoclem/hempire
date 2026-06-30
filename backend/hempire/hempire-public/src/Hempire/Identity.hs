@@ -2,6 +2,7 @@
 
 module Hempire.Identity (
   IdentityId (..),
+  formatIdentityId,
 ) where
 
 import Data.Aeson (FromJSON, ToJSON)
@@ -17,3 +18,6 @@ data IdentityId = IdentityId
   deriving anyclass (FromJSON, ToJSON)
 
 makeFieldLabelsNoPrefix ''IdentityId
+
+formatIdentityId :: IdentityId -> Text
+formatIdentityId IdentityId{identityIssuer, identitySub} = identityIssuer <> "|" <> identitySub

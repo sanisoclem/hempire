@@ -1,6 +1,7 @@
 import { redirect, fail } from "@sveltejs/kit";
 import { requireOnboarded } from "$lib/server/guards";
-import { createLedger } from "$lib/server/ledger";
+import { insertWorkspace } from "$lib/server/finance";
+import { CreateWorkspaceSchema } from "$lib/schemas";
 import { ROUTES } from "$lib/routes";
 import type { PageServerLoad, Actions } from "./$types";
 
@@ -10,20 +11,29 @@ export const load: PageServerLoad = async ({ cookies }) => {
 
 export const actions: Actions = {
 	default: async ({ cookies, request }) => {
-		requireOnboarded(cookies);
+		const { customerId } = requireOnboarded(cookies);
 
 		const data = await request.formData();
-		const name = data.get("name");
-		const baseCurrency = data.get("baseCurrency");
+		const raw = {
+			name: data.get("name"),
+			baseCurrency: data.get("baseCurrency"),
+		};
 
-		if (!name || typeof name !== "string" || name.trim() === "") {
-			return fail(422, { error: "Workspace name is required." });
-		}
-		if (!baseCurrency || typeof baseCurrency !== "string" || baseCurrency.trim() === "") {
-			return fail(422, { error: "Base currency is required." });
+		const parsed = CreateWorkspaceSchema.safeParse(raw);
+		if (!parsed.success) {
+			const firstError = parsed.error.errors[0];
+			return fail(422, { error: firstError?.message ?? "Invalid input" });
 		}
 
-		const ledger = createLedger(name.trim(), baseCurrency.trim());
-		redirect(302, ROUTES.workspace.detail(ledger.id));
+		const result = await insertWorkspace({
+			customerId,
+			name: parsed.data.name,
+			baseCurrency: parsed.data.baseCurrency,
+			requestId: crypto.randomUUID(),
+		});
+
+		if (!result.success) return fail(500, { error: result.error });
+
+		redirect(302, ROUTES.workspace.detail(result.value.id));
 	},
 };

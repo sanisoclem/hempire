@@ -16,6 +16,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
 import Hempire.DomainId (parseId)
+import Hempire.Env (requireEnv)
 import Hempire.Id (CustomerId)
 import Hempire.Identity (IdentityId)
 import Hempire.Interpreter.Auth.Jwt (
@@ -27,7 +28,6 @@ import Network.Wai (Request, requestHeaders)
 import Servant (Handler, err401, throwError)
 import Servant.API.Experimental.Auth (AuthProtect)
 import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
-import System.Environment (lookupEnv)
 
 data CustomerAuth = CustomerAuth
   { cauthIdentity :: IdentityId
@@ -74,6 +74,3 @@ extractBearer req =
   case lookup "authorization" (requestHeaders req) of
     Just h | "Bearer " `BS.isPrefixOf` h -> pure (decodeUtf8 (BS.drop 7 h))
     _ -> throwError err401
-
-requireEnv :: String -> IO String
-requireEnv k = lookupEnv k >>= maybe (fail ("required env var not set: " <> k)) pure

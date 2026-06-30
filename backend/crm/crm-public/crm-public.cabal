@@ -7,6 +7,7 @@ license:       NONE
 library
   exposed-modules:
     Crm.Types
+    Crm.Types.IdpType
     Crm.Types.Invite
     Crm.Types.Command
     Crm.Types.Event

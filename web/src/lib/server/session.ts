@@ -16,6 +16,8 @@ export interface Session {
 const sessions = new Map<string, Session>();
 
 const secretKey = Buffer.from(config.session.secret, "hex");
+if (secretKey.length < 32)
+  throw new Error("BFF_SESSION_SECRET must be at least 64 hex chars (output of: openssl rand -hex 32)");
 
 export const SESSION_COOKIE_NAME = "hempire_session";
 

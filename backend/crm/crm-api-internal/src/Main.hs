@@ -8,6 +8,7 @@ import Crm.Handlers
 import Crm.Interpreter.Error (mapCrmError)
 import Crm.Interpreter.Repository.Postgres (runCrmRepositoryPostgres)
 import Crm.Types
+import Data.Default (def)
 import Data.IORef (newIORef)
 import Effectful hiding ((:>))
 import Effectful.Error.Static (Error, runError)
@@ -26,7 +27,11 @@ import Hempire.Interpreter.IdGen.Real (runIdGenReal)
 import Hempire.Interpreter.Logging.FastLogger (runLoggingFastLogger)
 import Hempire.Interpreter.Time.System (runTimeSystem)
 import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Middleware.Prometheus (metricsApp, prometheus)
+import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware)
+import OpenTelemetry.Trace (withTracerProvider)
 import Servant
+import Control.Concurrent (forkIO)
 
 type InternalAuth' = AuthProtect "crm-internal"
 
@@ -100,12 +105,14 @@ server env =
   run = appToHandler env
 
 main :: IO ()
-main = do
+main = withTracerProvider $ \_ -> do
   env <- newCrmAppEnv
   jwtCfg <- loadInternalJwtConfig
   keys <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
+  _ <- forkIO $ Warp.run 9092 metricsApp
+  otelMW <- newOpenTelemetryWaiMiddleware
   let authHandler = makeInternalAuthHandler jwtCfg keys
       ctx = authHandler :. EmptyContext
-      app = serveWithContext (Proxy @API) ctx (server env)
+      app = otelMW $ prometheus def $ serveWithContext (Proxy @API) ctx (server env)
   putStrLn "crm-api-internal listening on :8090"
   Warp.run 8090 app

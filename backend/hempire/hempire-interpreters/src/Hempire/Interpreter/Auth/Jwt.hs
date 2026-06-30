@@ -23,11 +23,12 @@ import Data.ByteString.Base64 qualified as B64
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Hempire.Identity (IdentityId (..))
 import Network.HTTP.Client (httpLbs, parseRequest, responseBody)
-import Network.HTTP.Client.TLS (newTlsManager)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
+import OpenTelemetry.Instrumentation.HttpClient (httpClientInstrumentationConfig, newTracedManager)
 
 fetchJwks :: String -> IO JWKSet
 fetchJwks jwksUri = do
-  mgr <- newTlsManager
+  mgr <- newTracedManager httpClientInstrumentationConfig tlsManagerSettings
   req <- parseRequest jwksUri
   resp <- httpLbs req mgr
   either (ioError . userError) pure $

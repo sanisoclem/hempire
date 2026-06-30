@@ -23,3 +23,10 @@ executable outbox-sender
     , text
     , bytestring
     , async
+    , warp                       ^>=3.4
+    , wai                        ^>=3.2
+    , hs-opentelemetry-sdk       ^>=1.0
+    , hs-opentelemetry-api       ^>=1.0
+    , hs-opentelemetry-exporter-otlp ^>=1.0
+    , prometheus-client          ^>=1.1
+    , wai-middleware-prometheus  ^>=1.0

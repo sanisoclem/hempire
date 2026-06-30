@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "node build/index.js",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
@@ -41,6 +42,14 @@
   },
   "dependencies": {
     "@electric-sql/client": "^1.5.22",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
+    "@opentelemetry/resources": "^2.8.0",
+    "@opentelemetry/sdk-metrics": "^2.8.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
+    "@opentelemetry/semantic-conventions": "^1.41.1",
     "@tanstack/db": "^0.6.12",
     "@tanstack/electric-db-collection": "^0.3.10",
     "@tanstack/svelte-db": "^0.1.89",

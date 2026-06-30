@@ -14,6 +14,7 @@ import Crm.Interpreter.Repository.Postgres (runCrmRepositoryPostgres)
 import Crm.Types
 import Crypto.JOSE.JWK (JWKSet)
 import Data.Aeson (encode)
+import Data.Default (def)
 import Data.IORef (IORef, newIORef, writeIORef)
 import Data.Text qualified as T
 import Effectful hiding ((:>))
@@ -33,6 +34,9 @@ import Hempire.Interpreter.IdGen.Real (runIdGenReal)
 import Hempire.Interpreter.Logging.FastLogger (runLoggingFastLogger)
 import Hempire.Interpreter.Time.System (runTimeSystem)
 import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Middleware.Prometheus (metricsApp, prometheus)
+import OpenTelemetry.Instrumentation.Wai (newOpenTelemetryWaiMiddleware)
+import OpenTelemetry.Trace (withTracerProvider)
 import Servant
 import System.Environment (lookupEnv)
 
@@ -100,16 +104,18 @@ server env zCfg =
   run = appToHandler env zCfg
 
 main :: IO ()
-main = do
+main = withTracerProvider $ \_ -> do
   env <- newCrmAppEnv
   jwtCfg <- loadCustomerJwtConfig
   zCfg <- loadZitadelConfig
   keys <- fetchJwks (cfgJwksUri jwtCfg) >>= newIORef
   _ <- forkIO (jwksRefreshLoop (cfgJwksUri jwtCfg) keys)
+  _ <- forkIO $ Warp.run 9091 metricsApp
+  otelMW <- newOpenTelemetryWaiMiddleware
+  port <- read <$> requireEnv "CRM_API_PORT"
   let authHandler = makeCustomerAuthHandler jwtCfg keys
       ctx = authHandler :. EmptyContext
-      app = serveWithContext (Proxy @API) ctx (server env zCfg)
-  port <- read <$> requireEnv "CRM_API_PORT"
+      app = otelMW $ prometheus def $ serveWithContext (Proxy @API) ctx (server env zCfg)
   putStrLn $ "crm-api listening on :" <> show port
   Warp.run port app
 

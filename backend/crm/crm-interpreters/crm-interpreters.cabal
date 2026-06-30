@@ -41,3 +41,5 @@ library
     , postgresql-simple     ^>=0.7
     , text
     , time
+    , hs-opentelemetry-api                         ^>=1.0
+    , hs-opentelemetry-instrumentation-http-client ^>=1.0

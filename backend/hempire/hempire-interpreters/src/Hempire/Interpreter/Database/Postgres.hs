@@ -11,9 +11,11 @@ import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8)
 import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple qualified as PG
+import Database.PostgreSQL.Simple.Types (fromQuery)
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Hempire.Effect.Database (Database (..), DatabaseError (..))
+import Hempire.Interpreter.Telemetry (withDbSpan)
 
 runDatabasePostgres ::
   (IOE :> es) =>
@@ -28,9 +30,9 @@ runDatabasePostgres pool action =
           run $
             interpret
               ( \env -> \case
-                  RunQuery q args -> liftIO $ PG.query conn q args
-                  RunQuery_ q args -> liftIO $ void $ PG.execute conn q args
-                  Execute q args -> liftIO $ PG.execute conn q args
+                  RunQuery q args -> liftIO $ withDbSpan (decodeUtf8 (fromQuery q)) $ PG.query conn q args
+                  RunQuery_ q args -> liftIO $ withDbSpan (decodeUtf8 (fromQuery q)) $ void $ PG.execute conn q args
+                  Execute q args -> liftIO $ withDbSpan (decodeUtf8 (fromQuery q)) $ PG.execute conn q args
                   WithTransaction inner ->
                     localSeqUnliftIO env $ \unlift ->
                       PG.withTransaction conn (unlift inner)

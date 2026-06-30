@@ -96,6 +96,7 @@ services:
     environment:
       DATABASE_URL: postgresql://hempire:hempire@postgres:5432/hempire_bff
       LOGICAL_PUBLISHER_HOST: electric
+      ELECTRIC_INSECURE: "true"
     ports:
       - "3001:3000"
     depends_on:

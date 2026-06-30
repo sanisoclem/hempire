@@ -41,10 +41,16 @@
   },
   "dependencies": {
     "@electric-sql/client": "^1.5.22",
+    "@tanstack/db": "^0.6.12",
+    "@tanstack/electric-db-collection": "^0.3.10",
+    "@tanstack/svelte-db": "^0.1.89",
     "arctic": "^3.7.0",
     "clsx": "^2.1.1",
     "kafkajs": "^2.2.4",
     "postgres": "^3.4.9",
     "tailwind-merge": "^3.6.0"
+  },
+  "patchedDependencies": {
+    "kafkajs@2.2.4": "patches/kafkajs@2.2.4.patch"
   }
 }

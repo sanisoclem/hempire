@@ -43,23 +43,28 @@ requireEnv :: String -> IO String
 requireEnv k = lookupEnv k >>= maybe (fail ("required env var not set: " <> k)) pure
 ```
 
+Naming rule: prefix must be a domain name (`CRM_`), `BACKEND_`, or `BFF_`. `CRM_` scopes to the CRM domain; `BACKEND_` for cross-domain backend infra.
+
 Current required vars:
 
 | Var | Used by |
 |---|---|
 | `CRM_DATABASE_URL` | `Crm.AppEnv` |
-| `AUTH_JWKS_URI` | `crm-api` |
-| `AUTH_ISSUER` | `crm-api` |
-| `AUTH_AUDIENCE` | `crm-api` |
-| `ZITADEL_API_URL` | `crm-api` |
-| `ZITADEL_CLIENT_ID` | `crm-api` |
-| `ZITADEL_CLIENT_SECRET` | `crm-api` |
-| `AUTH_INTERNAL_JWKS_URI` | `crm-api-internal` |
-| `AUTH_INTERNAL_ISSUER` | `crm-api-internal` |
-| `AUTH_INTERNAL_AUDIENCE` | `crm-api-internal` |
+| `CRM_AUTH_JWKS_URI` | `crm-api` |
+| `CRM_AUTH_ISSUER` | `crm-api` |
+| `CRM_AUTH_AUDIENCE` | `crm-api` |
+| `CRM_ZITADEL_API_URL` | `crm-api` |
+| `CRM_ZITADEL_CLIENT_ID` | `crm-api` |
+| `CRM_ZITADEL_CLIENT_SECRET` | `crm-api` |
+| `CRM_AUTH_INTERNAL_JWKS_URI` | `crm-api-internal` |
+| `CRM_AUTH_INTERNAL_ISSUER` | `crm-api-internal` |
+| `CRM_AUTH_INTERNAL_AUDIENCE` | `crm-api-internal` |
 | `CRM_AUTH_INTERNAL_REQUIRED_ROLE` | `crm-api-internal` |
+| `CRM_API_PORT` | `crm-api` |
+| `BACKEND_KAFKA_BROKERS` | `outbox-sender` |
+| `BACKEND_OUTBOX_DATABASE_URLS` | `outbox-sender` |
 
-Auth vars (`AUTH_*`) apply across all domains. DB vars are domain-prefixed (`CRM_DATABASE_URL`). See `.env.example` at the repo root.
+See `.env.example` at the repo root.
 
 ## Domain error pattern
 

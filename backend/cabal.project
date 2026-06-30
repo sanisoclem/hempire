@@ -7,3 +7,4 @@ packages:
   ./hempire/hempire-public
   ./hempire/hempire-effects
   ./hempire/hempire-interpreters
+  ./outbox-sender

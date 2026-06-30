@@ -42,9 +42,9 @@ data InternalJwtConfig = InternalJwtConfig
 
 loadInternalJwtConfig :: IO InternalJwtConfig
 loadInternalJwtConfig = do
-  jwksUri <- requireEnv "AUTH_INTERNAL_JWKS_URI"
-  issuer <- requireEnv "AUTH_INTERNAL_ISSUER"
-  audience <- requireEnv "AUTH_INTERNAL_AUDIENCE"
+  jwksUri <- requireEnv "CRM_AUTH_INTERNAL_JWKS_URI"
+  issuer <- requireEnv "CRM_AUTH_INTERNAL_ISSUER"
+  audience <- requireEnv "CRM_AUTH_INTERNAL_AUDIENCE"
   role <- requireEnv "CRM_AUTH_INTERNAL_REQUIRED_ROLE"
   pure
     InternalJwtConfig

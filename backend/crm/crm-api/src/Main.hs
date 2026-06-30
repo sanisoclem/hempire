@@ -73,9 +73,9 @@ appToHandler env zCfg auth action = do
                   runCrmRepositoryPostgres $
                     runIdpZitadel zCfg $
                       runContextFor (cauthCustomerId auth) $
-                        runError @CrmDomainError $
-                          runError @ServerError $
-                            withTransaction action
+                        withTransaction $
+                          runError @CrmDomainError $
+                            runError @ServerError action
   case outcome of
     Left dbErr -> liftIO (logDbError dbErr) >> throwError err500
     Right (Left (_, domainErr)) -> case mapCrmError domainErr of
@@ -132,9 +132,9 @@ jwksRefreshLoop uri ref = forever $ do
 
 loadZitadelConfig :: IO ZitadelConfig
 loadZitadelConfig = do
-  apiUrl <- requireEnv "ZITADEL_API_URL"
-  cidStr <- requireEnv "ZITADEL_CLIENT_ID"
-  csecret <- requireEnv "ZITADEL_CLIENT_SECRET"
+  apiUrl <- requireEnv "CRM_ZITADEL_API_URL"
+  cidStr <- requireEnv "CRM_ZITADEL_CLIENT_ID"
+  csecret <- requireEnv "CRM_ZITADEL_CLIENT_SECRET"
   pure
     ZitadelConfig
       { zCfgApiUrl = T.pack apiUrl

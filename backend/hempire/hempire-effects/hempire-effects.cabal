@@ -23,6 +23,7 @@ library
     Hempire.Effect.Database
     Hempire.Effect.Events
     Hempire.Effect.IdGen
+    Hempire.Effect.Messaging
     Hempire.Effect.Logging
     Hempire.Effect.Time
     Hempire.Prelude

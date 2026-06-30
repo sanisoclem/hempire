@@ -4,7 +4,7 @@ import { upsertBffUserConfirmed } from "./db";
 
 const kafka = new Kafka({
 	clientId: "hempire-bff",
-	brokers: requireEnv("KAFKA_BROKERS").split(","),
+	brokers: requireEnv("BFF_KAFKA_BROKERS").split(","),
 });
 
 const consumer = kafka.consumer({ groupId: "bff" });

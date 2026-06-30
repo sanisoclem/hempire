@@ -1,7 +1,7 @@
 import { OAuth2Client, CodeChallengeMethod, generateState, generateCodeVerifier, decodeIdToken } from "arctic";
 import { error } from "@sveltejs/kit";
 import type { Cookies } from "@sveltejs/kit";
-import { requireEnv } from "$lib/server/env";
+import { config } from "$lib/server/config";
 
 const SCOPES = ["openid", "profile", "email", "offline_access", "urn:zitadel:iam:user:metadata"];
 const STATE_COOKIE = "oauth_state";
@@ -14,18 +14,14 @@ const PKCE_COOKIE_OPTIONS = {
 	path: "/",
 };
 
-function getConfig() {
-	const domain = requireEnv("BFF_ZITADEL_DOMAIN");
-	return {
-		authorizationEndpoint: `${domain}/oauth/v2/authorize`,
-		tokenEndpoint: `${domain}/oauth/v2/token`,
-		client: new OAuth2Client(
-			requireEnv("BFF_CLIENT_ID"),
-			process.env.BFF_CLIENT_SECRET ?? null,
-			requireEnv("BFF_REDIRECT_URI"),
-		),
-	};
-}
+const oauthClient = new OAuth2Client(
+	config.zitadel.clientId,
+	config.zitadel.clientSecret,
+	config.zitadel.redirectUri,
+);
+
+const authorizationEndpoint = `${config.zitadel.domain}/oauth/v2/authorize`;
+const tokenEndpoint = `${config.zitadel.domain}/oauth/v2/token`;
 
 export interface UserClaims {
 	sub: string;
@@ -66,12 +62,11 @@ function tokenData(tokens: Awaited<ReturnType<OAuth2Client["validateAuthorizatio
 }
 
 export function createAuthorizationUrl(cookies: Cookies): URL {
-	const { authorizationEndpoint, client } = getConfig();
 	const state = generateState();
 	const codeVerifier = generateCodeVerifier();
 	cookies.set(STATE_COOKIE, state, PKCE_COOKIE_OPTIONS);
 	cookies.set(VERIFIER_COOKIE, codeVerifier, PKCE_COOKIE_OPTIONS);
-	return client.createAuthorizationURLWithPKCE(
+	return oauthClient.createAuthorizationURLWithPKCE(
 		authorizationEndpoint,
 		state,
 		CodeChallengeMethod.S256,
@@ -92,13 +87,11 @@ export async function exchangeCode(requestUrl: URL, cookies: Cookies): Promise<T
 	cookies.delete(STATE_COOKIE, { path: "/" });
 	cookies.delete(VERIFIER_COOKIE, { path: "/" });
 
-	const { tokenEndpoint, client } = getConfig();
-	const tokens = await client.validateAuthorizationCode(tokenEndpoint, code, codeVerifier);
+	const tokens = await oauthClient.validateAuthorizationCode(tokenEndpoint, code, codeVerifier);
 	return tokenData(tokens);
 }
 
 export async function refreshTokens(refreshToken: string): Promise<TokenData> {
-	const { tokenEndpoint, client } = getConfig();
-	const tokens = await client.refreshAccessToken(tokenEndpoint, refreshToken, SCOPES);
+	const tokens = await oauthClient.refreshAccessToken(tokenEndpoint, refreshToken, SCOPES);
 	return tokenData(tokens, refreshToken);
 }

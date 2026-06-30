@@ -7,15 +7,12 @@ scrape_configs:
     static_configs:
       - targets: ['otel-collector:8889']
 
-  # Haskell services expose /metrics on sidecar ports (host network)
   - job_name: crm-api
     static_configs:
-      - targets: ['host.docker.internal:9091']
-
+      - targets: ['host.docker.internal:10001']
   - job_name: crm-api-internal
     static_configs:
-      - targets: ['host.docker.internal:9092']
-
+      - targets: ['host.docker.internal:10002']
   - job_name: outbox-sender
     static_configs:
-      - targets: ['host.docker.internal:9093']
+      - targets: ['host.docker.internal:10003']

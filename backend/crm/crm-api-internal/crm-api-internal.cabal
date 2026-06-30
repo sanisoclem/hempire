@@ -42,3 +42,4 @@ executable crm-api-internal
     , prometheus-client                      ^>=1.1
     , wai-middleware-prometheus              ^>=1.0
     , data-default                           ^>=0.7
+    , uuid                                   ^>=1.3

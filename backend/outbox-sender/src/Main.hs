@@ -20,64 +20,67 @@ import Hempire.Interpreter.Messaging.Kafka (runMessagingKafka)
 import Kafka.Producer
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Middleware.Prometheus (metricsApp)
-import OpenTelemetry.Trace (getGlobalTracerProvider, withTracerProvider)
+import OpenTelemetry.SDK (withOpenTelemetry)
+import OpenTelemetry.Trace (getGlobalTracerProvider)
 import OpenTelemetry.Trace.Core (
-  SpanArguments (..),
-  SpanKind (..),
-  defaultSpanArguments,
-  inSpan,
-  makeTracer,
-  tracerOptions,
+    SpanArguments (..),
+    SpanKind (..),
+    defaultSpanArguments,
+    inSpan,
+    makeTracer,
+    tracerOptions,
  )
-import System.Environment (getEnv)
+import System.Environment (getEnv, setEnv)
 import System.IO (hPutStrLn, stderr)
 
 data OutboxMessage = OutboxMessage
-  { msgId :: Int64
-  , msgTopic :: Text
-  , msgPayload :: Text
-  }
+    { msgId :: Int64
+    , msgTopic :: Text
+    , msgPayload :: Text
+    }
 
 instance FromRow OutboxMessage where
-  fromRow = OutboxMessage <$> field <*> field <*> field
+    fromRow = OutboxMessage <$> field <*> field <*> field
 
 mkPool :: ByteString -> IO (Pool Connection)
 mkPool connStr =
-  newPool $
-    setNumStripes (Just 1) $
-      defaultPoolConfig (connectPostgreSQL connStr) close 30 5
+    newPool $
+        setNumStripes (Just 1) $
+            defaultPoolConfig (connectPostgreSQL connStr) close 30 5
 
 main :: IO ()
-main = withTracerProvider $ \_ -> do
-  urlsStr <- getEnv "BACKEND_OUTBOX_DATABASE_URLS"
-  brokersStr <- getEnv "BACKEND_KAFKA_BROKERS"
-  let connStrs = map (encodeUtf8 . T.strip) $ T.splitOn "," (T.pack urlsStr)
-      brokers = map (BrokerAddress . T.strip) $ T.splitOn "," (T.pack brokersStr)
-  producer <-
-    newProducer (brokersList brokers <> sendTimeout (Timeout 10000))
-      >>= either (throwIO . userError . show) pure
-  pools <- mapM mkPool connStrs
-  _ <- forkIO $ Warp.run 9093 metricsApp
-  tp <- getGlobalTracerProvider
-  let tracer = makeTracer tp "outbox-sender" tracerOptions
-      spanArgs = defaultSpanArguments {kind = Internal}
-  forConcurrently_ pools $ \pool ->
-    forever $ do
-      result <-
-        inSpan tracer "outbox.process" spanArgs $
-          runEff $
-            runDatabasePostgres pool $
-              runMessagingKafka
-                producer
-                processOutbox
-      case result of
-        Left err -> hPutStrLn stderr ("outbox error: " <> show err)
-        Right () -> pure ()
-      threadDelay 1_000_000
+main = do
+    setEnv "OTEL_SERVICE_NAME" "outbox-sender"
+    withOpenTelemetry $ \_ -> do
+        urlsStr <- getEnv "BACKEND_OUTBOX_DATABASE_URLS"
+        brokersStr <- getEnv "BACKEND_KAFKA_BROKERS"
+        let connStrs = map (encodeUtf8 . T.strip) $ T.splitOn "," (T.pack urlsStr)
+            brokers = map (BrokerAddress . T.strip) $ T.splitOn "," (T.pack brokersStr)
+        producer <-
+            newProducer (brokersList brokers <> sendTimeout (Timeout 10000))
+                >>= either (throwIO . userError . show) pure
+        pools <- mapM mkPool connStrs
+        _ <- forkIO $ Warp.run 10003 metricsApp
+        tp <- getGlobalTracerProvider
+        let tracer = makeTracer tp "outbox-sender" tracerOptions
+            spanArgs = defaultSpanArguments{kind = Internal}
+        forConcurrently_ pools $ \pool ->
+            forever $ do
+                result <-
+                    inSpan tracer "outbox.process" spanArgs $
+                        runEff $
+                            runDatabasePostgres pool $
+                                runMessagingKafka
+                                    producer
+                                    processOutbox
+                case result of
+                    Left err -> hPutStrLn stderr ("outbox error: " <> show err)
+                    Right () -> pure ()
+                threadDelay 1_000_000
 
 processOutbox :: (Database :> es, Messaging :> es) => Eff es ()
 processOutbox = do
-  msgs :: [OutboxMessage] <- runQuery "SELECT id, topic, payload::text FROM outbox ORDER BY id LIMIT 100" ()
-  forM_ msgs $ \msg -> do
-    sendMessage msg.msgTopic (encodeUtf8 msg.msgPayload)
-    runQuery_ "DELETE FROM outbox WHERE id = ?" (Only msg.msgId)
+    msgs :: [OutboxMessage] <- runQuery "SELECT id, topic, payload::text FROM outbox ORDER BY id LIMIT 100" ()
+    forM_ msgs $ \msg -> do
+        sendMessage msg.msgTopic (encodeUtf8 msg.msgPayload)
+        runQuery_ "DELETE FROM outbox WHERE id = ?" (Only msg.msgId)

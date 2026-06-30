@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
-      - 'docker/*.Dockerfile'
+      - 'docker/backend.Dockerfile'
       - '.github/workflows/haskell.yml'
   pull_request:
     paths:
@@ -51,7 +51,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     strategy:
       matrix:
-        service: [crm-api]
+        service: [crm-api, crm-api-internal, outbox-sender]
 
     permissions:
       contents: read
@@ -71,7 +71,8 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: backend
-          file: docker/${{ matrix.service }}.Dockerfile
+          file: docker/backend.Dockerfile
+          build-args: SERVICE=${{ matrix.service }}
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}

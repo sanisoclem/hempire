@@ -1,28 +1,56 @@
+import { SpanKind, SpanStatusCode, context, propagation, trace } from "@opentelemetry/api";
 import { Kafka } from "kafkajs";
-import { requireEnv } from "$lib/server/env";
+import { config } from "$lib/server/config";
 import { upsertBffUserConfirmed } from "./db";
 
-const kafka = new Kafka({
-	clientId: "hempire-bff",
-	brokers: requireEnv("BFF_KAFKA_BROKERS").split(","),
-});
-
-const consumer = kafka.consumer({ groupId: "bff" });
+const tracer = trace.getTracer("hempire-bff");
 
 export async function startKafkaConsumer(): Promise<void> {
+	const kafka = new Kafka({
+		clientId: "hempire-bff",
+		brokers: config.kafka.brokers,
+	});
+	const consumer = kafka.consumer({ groupId: "bff" });
 	await consumer.connect();
 	await consumer.subscribe({ topics: ["crm.events"], fromBeginning: false });
 	await consumer.run({
-		eachMessage: async ({ topic, message }) => {
+		eachMessage: async ({ topic, partition, message }) => {
 			if (!message.value) return;
-			let event: Record<string, unknown>;
-			try {
-				event = JSON.parse(message.value.toString());
-			} catch {
-				console.error("BFF Kafka: failed to parse message");
-				return;
+
+			const headers: Record<string, string> = {};
+			if (message.headers) {
+				for (const [key, val] of Object.entries(message.headers)) {
+					if (val !== undefined) headers[key] = val.toString();
+				}
 			}
-			if (topic === "crm.events") await handleCrmEvent(event);
+			const parentCtx = propagation.extract(context.active(), headers);
+
+			await context.with(parentCtx, () =>
+				tracer.startActiveSpan(
+					`${topic} process`,
+					{ kind: SpanKind.CONSUMER, attributes: { "messaging.system": "kafka", "messaging.destination": topic, "messaging.kafka.partition": partition } },
+					async (span) => {
+						try {
+							let event: Record<string, unknown>;
+							try {
+								event = JSON.parse(message.value!.toString());
+							} catch {
+								console.error("BFF Kafka: failed to parse message");
+								span.setStatus({ code: SpanStatusCode.ERROR, message: "parse error" });
+								return;
+							}
+							if (topic === "crm.events") await handleCrmEvent(event);
+							span.setStatus({ code: SpanStatusCode.OK });
+						} catch (err) {
+							span.recordException(err as Error);
+							span.setStatus({ code: SpanStatusCode.ERROR });
+							throw err;
+						} finally {
+							span.end();
+						}
+					}
+				)
+			);
 		},
 	});
 }
